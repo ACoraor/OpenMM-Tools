@@ -39,10 +39,10 @@ def main():
 
     #Save new pdbs
     pdb = md.formats.PDBTrajectoryFile('cy3_dna.pdb',mode='w')
-    pdb.write(cy3_built_xyz,cy3_built_top)
+    pdb.write(10.*cy3_built_xyz,cy3_built_top)
     
     pdb = md.formats.PDBTrajectoryFile('cy5_dna.pdb',mode='w')
-    pdb.write(cy5_built_xyz,cy5_built_top)
+    pdb.write(10.*cy5_built_xyz,cy5_built_top)
 
     print("DNA dye pdbs written! Exiting...")
 
@@ -61,9 +61,27 @@ def remove_tail(xyz,top):
         nt_top: *mdtraj.topology*
             A new Topology of the amber dye without tail atoms.
     """
-    print("STUB!")
+    #Remove lysine
+    res = [r for r in top.residues]
 
-    return xyz, top
+    rm_inds = []
+    #Remove all lysine atoms
+    for at in res[1].atoms:
+        rm_inds.append(at.index)
+
+    rm_names = ["C25","C26","C99","O91", "H27","H28","H29","H30"]
+    for at in res[0].atoms:
+        if at.name in rm_names:
+            rm_inds.append(at.index)
+
+    all_ats = [at for at in top.atoms]
+    keep_inds = [n for n in range(len(all_ats)) if n not in set(rm_inds)]
+    keep_inds = np.array(keep_inds,dtype=int)
+
+    nt_xyz = xyz[keep_inds]
+    nt_top = top.subset(keep_inds)
+
+    return nt_xyz,nt_top
 
 
 def add_links(xyz,top):
