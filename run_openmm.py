@@ -123,6 +123,12 @@ def generate_simulation(pdb, ff):
     simulation = app.Simulation(topology, system, integrator)
     simulation.context.setPositions(modeller.positions)
 
+    #Set PBC ?
+    #a = Vec3(10.0,0.0,0.0)
+    #b = Vec3(0.0,10.0,0.0)
+    #c = Vec3(0.0,0.0,32.0)
+    #simulation.context.setPeroidicBoxVectors
+
     return simulation 
 
 def run_simulation(simulation,n_ts=10000):

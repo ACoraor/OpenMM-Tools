@@ -15,9 +15,10 @@ def main():
 
         #Generate filenames
         fs = [ele for ele in os.listdir(args.dir) if ('state' in ele
-            and '.xml' in ele)]
+            and '.xml' in ele and ele[0] != ".")]
 
         n_states = len(fs)
+        print(n_states)
         fns = [os.path.join(args.dir,"state_%s.xml" % n) for n in 
             range(n_states)]
         
@@ -31,7 +32,7 @@ def main():
         for i, fn in enumerate(fns):
             if i % 50 == 0:
                 print("On traj",i)
-                xmls.append(md.load_xml(fn,top=top)) 
+            xmls.append(md.load_xml(fn,top=top)) 
         #xmls = [md.load_xml(fn,top=top) for fn in fns]
         traj = md.join(xmls)
         #traj = md.load_xml(fns[0],top=top)
@@ -40,7 +41,9 @@ def main():
         #        print("On traj",i)
         #    traj = md.join((traj,md.load_xml(fn,top=top)))
         
-        traj.save_lammpstrj(args.output)
+        traj.save_xyz(args.output)
+        no_solvent = traj.remove_solvent()
+        no_solvent.save_xyz(args.ns_output)
         print("Data saved. Exiting.")
 
 	
@@ -52,8 +55,10 @@ if __name__ == '__main__':
         help='Path to savestate directory')
     parser.add_argument('-i','--init', type=str, default='init.pdb',
         help='Path to PDB of initialized structure.')
-    parser.add_argument('-o','--output', type=str, default='cat_state.lammpsrj',
-        help='Name for final lammpstrj')
+    parser.add_argument('-o','--output', type=str, 
+        default='cat_state.xyz', help='Name for final lammpstrj')
+    parser.add_argument('-n','--ns_output', type=str, 
+        default='only_dna.xyz', help='Name for final lammpstrj without solvent')
     args = parser.parse_args()
 
     main()
