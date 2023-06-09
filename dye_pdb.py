@@ -9,6 +9,7 @@ import argparse
 import warnings
 import os
 
+MASS = {"C":12.0107, "N": 14.0067, "O": 15.999, "P": 30.973762}
 
 def main():
     """Modify the existing Cy3 and Cy5 pdbs to have a phosphate linker,
@@ -98,9 +99,28 @@ def add_links(xyz,top):
         built_top: *mdtraj.topology*
             A new Topology of the amber dye with linkers.
     """
+    res1 = [r for r in top.residues][0]
+    
+    #Construct phosphate
+    sym = "P"
+    top.add_atom(sym,md.element.Element.getBySymbol(sym),residue=res1)
+
+    sym = "O"
+    top.add_atom("OP1",md.element.Element.getBySymbol(sym),residue=res1)
+    sym = "O"
+    top.add_atom("OP2",md.element.Element.getBySymbol(sym),residue=res1)
+
+    #Construct phosphate positions
+
+    #Add alkyl linker
+    #Remove hydrogen
+
+
     print("STUB!")
 
     return xyz, top
+
+
 def foo(bar):
     """Init.
 
@@ -108,7 +128,7 @@ def foo(bar):
         bar: *np.array*
             description
     Returns:
-        biz: *np.arra*
+        biz: *np.array*
             description
     """
     pass
