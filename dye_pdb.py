@@ -106,17 +106,95 @@ def add_links(xyz,top):
     top.add_atom(sym,md.element.Element.getBySymbol(sym),residue=res1)
 
     sym = "O"
+    top.add_atom("O3",md.element.Element.getBySymbol(sym),residue=res1)
+    sym = "O"
     top.add_atom("OP1",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "O"
     top.add_atom("OP2",md.element.Element.getBySymbol(sym),residue=res1)
 
     #Construct phosphate positions
+    #Treat the vector from C to O as the same as the prior leg
+    c0_i = top.select('name C24')[0]
+    c1_i = top.select('name C23')[0]
+    c2_i = top.select('name C22')[0]
+    #print("Indices:",c0_i,c1_i,c2_i)
+
+    #Works for 
+    C0 = xyz[c0_i]
+    C1 = xyz[c1_i]
+    C2 = xyz[c2_i]
+    
+    d1 = C1 - C2
+    d2 = C0 - C1
+    o3 = C0 + d1 #Oxygen 1 position
+    P = o3 + d2 #Phosphorus core position
+
+    d3 = d2 - d1 # Bonus vector to place OP3
+    h1_i = top.select('name H25')[0]
+    h2_i = top.select('name H26')[0]
+    H1 = xyz[h1_i]
+    H2 = xyz[h2_i]
+    dh3 = H1 - C0
+    dh4 = H2 - C0
+    op1 = P + 1.5*dh3
+    op2 = P + 1.5*dh4
+    
+
+
+    new_xyz = np.stack((P,o3,op1,op2))
+    xyz = np.concatenate((xyz,new_xyz))
+
 
     #Add alkyl linker
-    #Remove hydrogen
+    #Remove hydrogens from other side
+    c2p_i = top.select('name C21')[0]
+    h0p_i = top.select('name H18')[0]
+    h1p_i = top.select('name H19')[0]
+    h2p_i = top.select('name H20')[0]
+
+    #Move H18, H19, prep to delete H20
+    c2_h1 = top.select('name H21')[0]
+    c2_h2 = top.select('name H22')[0]
+    d1p = xyz[c2_h1] - C2
+    d2p = xyz[c2_h2] - C2
+
+    xyz[h0p_i] = xyz[c2p_i] + d1p
+    xyz[h1p_i] = xyz[c2p_i] + d2p
 
 
-    print("STUB!")
+
+
+    #Add carbon linkers
+    sym = "C"
+    top.add_atom("CG",md.element.Element.getBySymbol(sym),residue=res1)
+    sym = "H"
+    top.add_atom("HG",md.element.Element.getBySymbol(sym),residue=res1)
+    sym = "H"
+    top.add_atom("HI",md.element.Element.getBySymbol(sym),residue=res1)
+    sym = "C"
+    top.add_atom("CI",md.element.Element.getBySymbol(sym),residue=res1)
+    sym = "H"
+    top.add_atom("HN",md.element.Element.getBySymbol(sym),residue=res1)
+    sym = "H"
+    top.add_atom("HN",md.element.Element.getBySymbol(sym),residue=res1)
+    #All carbons added
+    C1p = xyz[c2p_i]+d1
+    C0p = C1p + d2
+
+    #Add hydrogens
+    h1p1 = C1p - d1p
+    h2p1 = C1p - d2p
+    h1p2 = C0p + d1p
+    h2p2 = C0p + d2p
+
+    new_xyz = np.stack((C1p,h1p1,h2p1,C0p,h1p2,h2p2))
+    xyz = np.concatenate((xyz,new_xyz))
+
+
+    xyz = np.concatenate((xyz[:h2p_i],xyz[h2p_i+1:]))
+    ats = [at for at in top.atoms]
+    inds = [i for i in range(len(ats)) if i != h2p_i]
+    top = top.subset(inds)
 
     return xyz, top
 
