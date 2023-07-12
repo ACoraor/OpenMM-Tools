@@ -106,7 +106,7 @@ def add_links(xyz,top):
     top.add_atom(sym,md.element.Element.getBySymbol(sym),residue=res1)
 
     sym = "O"
-    top.add_atom("O3",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("O5'",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "O"
     top.add_atom("OP1",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "O"
@@ -126,8 +126,8 @@ def add_links(xyz,top):
     
     d1 = C1 - C2
     d2 = C0 - C1
-    o3 = C0 + d1 #Oxygen 1 position
-    P = o3 + d2 #Phosphorus core position
+    o5 = C0 + d1 #Oxygen 1 position
+    P = o5 + d2 #Phosphorus core position
 
     d3 = d2 - d1 # Bonus vector to place OP3
     h1_i = top.select('name H25')[0]
@@ -141,7 +141,7 @@ def add_links(xyz,top):
     
 
 
-    new_xyz = np.stack((P,o3,op1,op2))
+    new_xyz = np.stack((P,o5,op1,op2))
     xyz = np.concatenate((xyz,new_xyz))
 
 

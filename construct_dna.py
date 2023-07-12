@@ -7,12 +7,13 @@ import numpy as np
 import mdtraj as md
 import argparse
 import warnings
+from vect_quat_util import *
 import os
 
 
 def main():
-        """Create a construct PDB by attaching Cy3 and Cy5 to the specified
-        NA residues."""
+    """Create a construct PDB by attaching Cy3 and Cy5 to the specified
+    NA residues."""
     #Assume cy3_dna.pdb and cy5_dna.pdb are in this directory!    
 
     #Load input pdb
@@ -74,16 +75,16 @@ def add_dyes(xyz, top, donor_xyz, donor_top, acceptor_xyz, acceptor_top,
         args.acceptor)
 
     #Next: get the inlet and outlet phosphorus and oxygen positions
-    d_phos_in, d_ox_in, d_phos_out, d_ox_out = get_phos_ox(xyz, top, 
+    d_phos_in, d_ox_in, d_ox_out = get_phos_ox(xyz, top, 
         donor_ind, is_donor=True) 
-    a_phos_in, a_ox_in, a_phos_out, a_ox_out = get_phos_ox(xyz, top, 
+    a_phos_in, a_ox_in, a_ox_out = get_phos_ox(xyz, top, 
         acceptor_ind, is_donor=False)
 
     #Rotate and translate the dye molecules to line up the phosphates
     affine_donor_xyz, affine_donor_top = affine_translate(d_phos_in,
-        d_ox_in, d_phos_out, d_ox_out, donor_xyz)
+        d_ox_in, d_ox_out, donor_xyz)
     affine_acceptor_xyz, affine_acceptor_top = affine_translate(a_phos_in,
-        a_ox_in, a_phos_out, a_ox_out, acceptor_xyz)
+        a_ox_in, a_ox_out, acceptor_xyz)
 
     #Combine xyzs and tops:
     labelled_xyz = np.concatenate((trunc_xyz, affine_donor_xyz, affine_acceptor_xyz))
@@ -110,8 +111,29 @@ def remove_dna_atoms(xyz, top, donor_ind, acceptor_ind):
         trunc_top: *mdtraj.topology*
             Topology of the truncated DNA pdb.
     """
-    print("STUB!")
-    pass
+    rm_inds = []
+
+    all_atoms = [at for at in top.atoms]
+
+    chains = [c for c in top.chains]
+    ch1_res = [r for r in chains[0].residues]
+    donor_residue = ch1_res[donor_ind]
+    ch2_res = [r for r in chains[1].residues]
+    acceptor_residue = ch2_res[acceptor_ind]
+
+    for at in donor_residue.atoms:
+        rm_inds.append(at.index)
+    for at in acceptor_residue.atoms:
+        rm_inds.append(at.index)
+
+    keep_inds = [i for i in range(len(all_atoms)) if i not in set(rm_inds)]
+    trunc_top = top.subset(keep_inds)
+    trunc_xyz = xyz[keep_inds]
+   
+    pdb = md.formats.PDBTrajectoryFile('rmdna.pdb',mode='w')
+    pdb.write(10.*trunc_xyz,trunc_top)
+
+    return trunc_xyz, trunc_top
 
 def get_phos_ox(xyz, top,index, is_donor):
     """Get the positions of the inlet and outlet phosphates and O?3? to 
@@ -130,16 +152,37 @@ def get_phos_ox(xyz, top,index, is_donor):
         phos_in: *np.array*, shape: (3)
             Position of the inlet phosphorus from the 3' direction.
         ox_in: *np.array*, shape: (3)
-            Position of the inlet OP1 from the 3' direction.
-        phos_out: *np.array*, shape: (3)
-            Position of the outlet phosphorus toward the 5' direction.
+            Position of the inlet O3' from the 3' direction.
         ox_out: *np.array*, shape: (3)
-            Position of the outlet OP2 from the 5' direction.
+            Position of the outlet O5' from the 5' direction.
     """
-    print("STUB!")
-    pass
+    #We seek to exactly overlay the incoming 3' phosphate, and its OP1
 
-def affine_translate(phos_in, ox_in, phos_out, ox_out,dye_xyz):
+    #We rotate the molecule until this is matched, and then rotate until 
+    #The outlet O5' position is matched.
+    chains = [ch for ch in top.chains]
+    if is_donor:
+        chain = chains[0]
+    else:
+        chain = chains[1]
+
+    residues = [r for r in chain.residues]
+    incoming_res = residues[index-1]
+    dye_res = residues[index]
+    incoming_atoms = [at for at in incoming_res.atoms]
+    dye_res_atoms = [at for at in dye_res.atoms]
+    for at in incoming_atoms:
+        if at.name == "P":
+            phos_in = xyz[at.index]
+    for at in dye_res_atoms:
+        if at.name == "O3'":
+            ox_in = xyz[at.index]
+        elif at.name == "O5'":
+            ox_out = xyz[at.index]
+
+    return phos_in, ox_in, ox_out
+
+def affine_translate(phos_in, ox_in, ox_out,dye_xyz):
     """Rotate the dye until it aligns with the appropriate phosphate in/out
 
     Parameters:
@@ -147,8 +190,6 @@ def affine_translate(phos_in, ox_in, phos_out, ox_out,dye_xyz):
             Position of the inlet phosphorus from the 3' direction.
         ox_in: *np.array*, shape: (3)
             Position of the inlet OP1 from the 3' direction.
-        phos_out: *np.array*, shape: (3)
-            Position of the outlet phosphorus toward the 5' direction.
         ox_out: *np.array*, shape: (3)
             Position of the outlet OP2 from the 5' direction.
         dye_xyz: *np.array*, shape: (n_atoms,3)
@@ -157,6 +198,7 @@ def affine_translate(phos_in, ox_in, phos_out, ox_out,dye_xyz):
         dye_xyz: *np.array*, shape: (n_atoms,3)
             Positions of particles in the rotated dye with linkers.
     """
+
     print("STUB!")
     pass
 
