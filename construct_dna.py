@@ -82,9 +82,9 @@ def add_dyes(xyz, top, donor_xyz, donor_top, acceptor_xyz, acceptor_top,
 
     #Rotate and translate the dye molecules to line up the phosphates
     affine_donor_xyz, affine_donor_top = affine_translate(d_phos_in,
-        d_ox_in, d_ox_out, donor_xyz)
+        d_ox_in, d_ox_out, donor_xyz, donor_top)
     affine_acceptor_xyz, affine_acceptor_top = affine_translate(a_phos_in,
-        a_ox_in, a_ox_out, acceptor_xyz)
+        a_ox_in, a_ox_out, acceptor_xyz,acceptor_top)
 
     #Combine xyzs and tops:
     labelled_xyz = np.concatenate((trunc_xyz, affine_donor_xyz, affine_acceptor_xyz))
@@ -182,7 +182,7 @@ def get_phos_ox(xyz, top,index, is_donor):
 
     return phos_in, ox_in, ox_out
 
-def affine_translate(phos_in, ox_in, ox_out,dye_xyz):
+def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top):
     """Rotate the dye until it aligns with the appropriate phosphate in/out
 
     Parameters:
@@ -194,13 +194,77 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz):
             Position of the outlet OP2 from the 5' direction.
         dye_xyz: *np.array*, shape: (n_atoms,3)
             Positions of particles in the dye with linkers.
+        dye_top: *mdtraj.topology*
+            Topology of the dye pdb.
     Returns:
         dye_xyz: *np.array*, shape: (n_atoms,3)
             Positions of particles in the rotated dye with linkers.
     """
+    fvu0 = np.eye(3)
+    quat0 = tu2rotquat(1e-5,np.array([1,0,0]))
+    quat = np.copy(quat0)
 
-    print("STUB!")
-    pass
+    #Get relevant dye atoms
+    dye_ats = [at for at in dye_top.atoms]
+    for at in dye_ats:
+        if at.name == "P":
+            dye_P = dye_xyz[at.index]
+        elif at.name == "O5'":
+            dye_o5 = dye_xyz[at.index]
+        elif at.name == "O3'":
+            dye_o3 = dye_xyz[at.index]
+
+    #Calculate angle to align P-O vectors
+    in_po_vector = ox_in - phos_in
+    in_po_vector = in_po_vector/np.linalg.norm(in_po_vector)
+    current_po_vector = (dye_o5 - dye_P)/np.linalg.norm(dye_o5-dye_P)
+
+    theta = np.arccos(np.dot(current_po_vector,in_po_vector))
+    rot_vector = np.cross(in_po_vector,current_po_vector)
+    rot_vector /= np.linalg.norm(rot_vector)
+    
+    q = tu2rotquat(theta,rot_vector)
+    quat = quat_multiply(q,quat)
+    fvu = quat_fvu_rot(fvu0,quat)
+    
+    #Rotate by quat
+    dye_xyz = np.array([quat_vec_rot(row, quat) for row in dye_xyz])
+    dye_ats = [at for at in dye_top.atoms]
+    for at in dye_ats:
+        if at.name == "P":
+            dye_P = dye_xyz[at.index]
+        elif at.name == "O5'":
+            dye_o5 = dye_xyz[at.index]
+        elif at.name == "O3'":
+            dye_o3 = dye_xyz[at.index]
+
+    #Now: Calculate angle to rotate along PO vector to align O5
+    p_O5_vect = dye_o5 - dye_P
+    dna_p_O5_vect = ox_out - phos_in
+
+    #Project dna vector onto the plan of rotation
+    p_O5_proj_vect = dna_p_O5_vect - np.dot(dna_p_O5_vect,
+        in_po_vector)*in_po_vecotr
+    
+    theta = np.arccos(np.dot(p_O5_proj_vect,p_O5_vect))
+    q = tu2rotquat(theta,in_po_vector)
+    
+    #Rotate dye into place   
+    dye_xyz = np.array([quat_vec_rot(row, quat) for row in dye_xyz])
+    dye_ats = [at for at in dye_top.atoms]
+    for at in dye_ats:
+        if at.name == "P":
+            dye_P = dye_xyz[at.index]
+        elif at.name == "O5'":
+            dye_o5 = dye_xyz[at.index]
+        elif at.name == "O3'":
+            dye_o3 = dye_xyz[at.index]
+    
+    #Finally: translate dye into place
+    disp = phos_in - dye_P
+    
+    dye_xyz = dye_xyz + disp
+    return dye_xyz
 
 def foo(bar):
     """Init.
