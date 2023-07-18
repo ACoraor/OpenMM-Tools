@@ -9,8 +9,10 @@ import pandas as pd
 import argparse
 import warnings
 import os
+from io import StringIO
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
+
 
 MASS = {"C":12.0107, "N": 14.0067, "O": 15.999, "P": 30.973762}
 
@@ -74,9 +76,6 @@ def load_amber_ffs(dye_path,cy3_amber_top,cy5_amber_top,cy3_top,cy5_top):
     #charge_res_path = os.path.join(dye_path,'aminoacids.rtp')
     cy3_rtp_path = os.path.join(dye_path,'cy3.rtp')
     cy5_rtp_path = os.path.join(dye_path,'cy5.rtp')
-    bonded_params_path = os.path.join(dye_path,'ffbonded.itp')
-    nonbonded_params_path = os.path.join(dye_path,'ffnonbonded.itp')
-    atom_types_path = os.path.join(dye_path,'atomtypes.atp')
 
     #Get names of cy3, cy5 atoms
     cy3_names = list(set([at.name for at in cy3_top.atoms]))
@@ -84,13 +83,6 @@ def load_amber_ffs(dye_path,cy3_amber_top,cy5_amber_top,cy3_top,cy5_top):
     cy3_names.sort()
     cy5_names.sort()
 
-    #Read file text
-    with open(bonded_params_path,'r') as f:
-        bonded_params = f.readlines()
-    with open(nonbonded_params_path,'r') as f:
-        nonbonded_params = f.readlines()
-    with open(atom_types_path,'r') as f:
-        atom_types = f.readlines()
    
     #Parse amino acids for pandas
     with open(cy3_rtp_path,'r') as f:
@@ -103,10 +95,75 @@ def load_amber_ffs(dye_path,cy3_amber_top,cy5_amber_top,cy3_top,cy5_top):
     cy3_bonds = cy3_rtp[75:147]
     cy3_impropers = cy3_rtp[148:167]
 
-    cy5_charges = cy5_rtp[5:74]
-    cy5_bonds = cy5_rtp[75:147]
-    cy5_impropers = cy5_rtp[148:167]
+    cy5_charges = cy5_rtp[5:78]
+    cy5_bonds = cy5_rtp[79:155]
+    cy5_impropers = cy5_rtp[156:177]
      
+    #Split and process:
+    cy3_charges = [ele.strip().split() for ele in cy3_charges]
+    cy3_bonds = [ele.strip().split() for ele in cy3_bonds]
+    cy3_impropers = [ele.strip().split() for ele in cy3_impropers]
+    cy5_charges = [ele.strip().split() for ele in cy5_charges]
+    cy5_bonds = [ele.strip().split() for ele in cy5_bonds]
+    cy5_impropers = [ele.strip().split() for ele in cy5_impropers]
+    
+    cy3_atom1 = [row[0] for row in cy3_charges]
+    cy3_atom2 = [row[1] for row in cy3_charges]
+    cy3_resp = [float(row[2]) for row in cy3_charges]
+
+    cy3_charge_df = pd.DataFrame()
+    cy3_charge_df['atom1'] = cy3_atom1
+    cy3_charge_df['atom2'] = cy3_atom2
+    cy3_charge_df['QqmmmRESP'] = cy3_resp
+    cy3_charge_df.to_csv('cy3_charge.csv',index=False)
+
+    cy3_bond_a1 = [row[0] for row in cy3_bonds]
+    cy3_bond_a2 = [row[1] for row in cy3_bonds]
+    cy3_bond_df = pd.DataFrame()
+    cy3_bond_df['a1'] = cy3_bond_a1
+    cy3_bond_df['a2'] = cy3_bond_a2
+    cy3_bond_df.to_csv('cy3_bond.csv',index=False)
+    
+
+    cy3_improper_a1 = [row[0] for row in cy3_impropers]
+    cy3_improper_a2 = [row[1] for row in cy3_impropers]
+    cy3_improper_a3 = [row[2] for row in cy3_impropers]
+    cy3_improper_a4 = [row[3] for row in cy3_impropers]
+    cy3_improper_df = pd.DataFrame()
+    cy3_improper_df['a1'] = cy3_improper_a1
+    cy3_improper_df['a2'] = cy3_improper_a2
+    cy3_improper_df['a3'] = cy3_improper_a3
+    cy3_improper_df['a4'] = cy3_improper_a4
+    cy3_improper_df.to_csv('cy3_improper.csv',index=False)
+    #Do the same for cy5
+    cy5_atom1 = [row[0] for row in cy5_charges]
+    cy5_atom2 = [row[1] for row in cy5_charges]
+    cy5_resp = [float(row[2]) for row in cy5_charges]
+
+    cy5_charge_df = pd.DataFrame()
+    cy5_charge_df['atom1'] = cy5_atom1
+    cy5_charge_df['atom2'] = cy5_atom2
+    cy5_charge_df['QqmmmRESP'] = cy5_resp
+    cy5_charge_df.to_csv('cy5_charge.csv',index=False)
+
+    cy5_bond_a1 = [row[0] for row in cy5_bonds]
+    cy5_bond_a2 = [row[1] for row in cy5_bonds]
+    cy5_bond_df = pd.DataFrame()
+    cy5_bond_df['a1'] = cy5_bond_a1
+    cy5_bond_df['a2'] = cy5_bond_a2
+    cy5_bond_df.to_csv('cy5_bond.csv',index=False)
+    
+
+    cy5_improper_a1 = [row[0] for row in cy5_impropers]
+    cy5_improper_a2 = [row[1] for row in cy5_impropers]
+    cy5_improper_a3 = [row[2] for row in cy5_impropers]
+    cy5_improper_a4 = [row[3] for row in cy5_impropers]
+    cy5_improper_df = pd.DataFrame()
+    cy5_improper_df['a1'] = cy5_improper_a1
+    cy5_improper_df['a2'] = cy5_improper_a2
+    cy5_improper_df['a3'] = cy5_improper_a3
+    cy5_improper_df['a4'] = cy5_improper_a4
+    cy5_improper_df.to_csv('cy5_improper.csv',index=False)
 
     print("STUB!")
     return dye_path
