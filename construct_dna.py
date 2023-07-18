@@ -31,7 +31,6 @@ def main():
     a_top = a_pdb.top
 
     #Add dyes in the correct locations
-    print("STUB")
     xyz, top = add_dyes(xyz, top, d_xyz, d_top, a_xyz, a_top, args.donor,
         args.acceptor)
 
@@ -75,20 +74,21 @@ def add_dyes(xyz, top, donor_xyz, donor_top, acceptor_xyz, acceptor_top,
         args.acceptor)
 
     #Next: get the inlet and outlet phosphorus and oxygen positions
-    d_phos_in, d_ox_in, d_ox_out = get_phos_ox(xyz, top, 
+    d_phos_in, d_ox_in, d_ox_out, d_dna_com = get_phos_ox(xyz, top, 
         donor_ind, is_donor=True) 
-    a_phos_in, a_ox_in, a_ox_out = get_phos_ox(xyz, top, 
+    a_phos_in, a_ox_in, a_ox_out, a_dna_com = get_phos_ox(xyz, top, 
         acceptor_ind, is_donor=False)
 
     #Rotate and translate the dye molecules to line up the phosphates
     affine_donor_xyz, affine_donor_top = affine_translate(d_phos_in,
-        d_ox_in, d_ox_out, donor_xyz, donor_top)
+        d_ox_in, d_ox_out, donor_xyz, donor_top,d_dna_com)
     affine_acceptor_xyz, affine_acceptor_top = affine_translate(a_phos_in,
-        a_ox_in, a_ox_out, acceptor_xyz,acceptor_top)
+        a_ox_in, a_ox_out, acceptor_xyz,acceptor_top,a_dna_com)
 
     #Combine xyzs and tops:
     labelled_xyz = np.concatenate((trunc_xyz, affine_donor_xyz, affine_acceptor_xyz))
-    labelled_top = trunc_top + affine_donor_top + affine_acceptor_top
+    labelled_top = trunc_top.join(affine_donor_top)
+    labelled_top = labelled_top.join(affine_acceptor_top)
 
     return labelled_xyz, labelled_top
 
@@ -155,6 +155,8 @@ def get_phos_ox(xyz, top,index, is_donor):
             Position of the inlet O3' from the 3' direction.
         ox_out: *np.array*, shape: (3)
             Position of the outlet O5' from the 5' direction.
+        dna_com: *np.array*, shape: (3)
+            Average position of the labelled DNA residue.
     """
     #We seek to exactly overlay the incoming 3' phosphate, and its OP1
 
@@ -167,22 +169,26 @@ def get_phos_ox(xyz, top,index, is_donor):
         chain = chains[1]
 
     residues = [r for r in chain.residues]
-    incoming_res = residues[index-1]
+    #outgoing_res = residues[index+1]
     dye_res = residues[index]
-    incoming_atoms = [at for at in incoming_res.atoms]
+    #outgoing_atoms = [at for at in outgoing_res.atoms]
     dye_res_atoms = [at for at in dye_res.atoms]
-    for at in incoming_atoms:
+    #for at in outgoing_atoms:
+    #    if at.name == "P":
+    #        phos_out = xyz[at.index]
+    for at in dye_res_atoms:
         if at.name == "P":
             phos_in = xyz[at.index]
-    for at in dye_res_atoms:
-        if at.name == "O3'":
+        if at.name == "OP1":
             ox_in = xyz[at.index]
         elif at.name == "O5'":
             ox_out = xyz[at.index]
 
-    return phos_in, ox_in, ox_out
+    dna_com = np.average(xyz[[at.index for at in dye_res_atoms]],axis=0)
 
-def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top):
+    return phos_in, ox_in, ox_out, dna_com
+
+def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top,dna_com):
     """Rotate the dye until it aligns with the appropriate phosphate in/out
 
     Parameters:
@@ -196,6 +202,8 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top):
             Positions of particles in the dye with linkers.
         dye_top: *mdtraj.topology*
             Topology of the dye pdb.
+        dna_com: *np.array*, shape: (3)
+            Average position of the labelled DNA residue.
     Returns:
         dye_xyz: *np.array*, shape: (n_atoms,3)
             Positions of particles in the rotated dye with linkers.
@@ -204,31 +212,10 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top):
     quat0 = tu2rotquat(1e-5,np.array([1,0,0]))
     quat = np.copy(quat0)
 
+    #Translate dye to 0
+    dye_xyz = dye_xyz - np.average(dye_xyz,axis=0)
+
     #Get relevant dye atoms
-    dye_ats = [at for at in dye_top.atoms]
-    for at in dye_ats:
-        if at.name == "P":
-            dye_P = dye_xyz[at.index]
-        elif at.name == "O5'":
-            dye_o5 = dye_xyz[at.index]
-        elif at.name == "O3'":
-            dye_o3 = dye_xyz[at.index]
-
-    #Calculate angle to align P-O vectors
-    in_po_vector = ox_in - phos_in
-    in_po_vector = in_po_vector/np.linalg.norm(in_po_vector)
-    current_po_vector = (dye_o5 - dye_P)/np.linalg.norm(dye_o5-dye_P)
-
-    theta = np.arccos(np.dot(current_po_vector,in_po_vector))
-    rot_vector = np.cross(in_po_vector,current_po_vector)
-    rot_vector /= np.linalg.norm(rot_vector)
-    
-    q = tu2rotquat(theta,rot_vector)
-    quat = quat_multiply(q,quat)
-    fvu = quat_fvu_rot(fvu0,quat)
-    
-    #Rotate by quat
-    dye_xyz = np.array([quat_vec_rot(row, quat) for row in dye_xyz])
     dye_ats = [at for at in dye_top.atoms]
     for at in dye_ats:
         if at.name == "P":
@@ -242,15 +229,21 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top):
     p_O5_vect = dye_o5 - dye_P
     dna_p_O5_vect = ox_out - phos_in
 
-    #Project dna vector onto the plan of rotation
-    p_O5_proj_vect = dna_p_O5_vect - np.dot(dna_p_O5_vect,
-        in_po_vector)*in_po_vecotr
+    #Project dna vector onto the plane of rotation
+    p_O5_vect /= np.linalg.norm(p_O5_vect)
+    dna_p_O5_vect /= np.linalg.norm(dna_p_O5_vect)
     
-    theta = np.arccos(np.dot(p_O5_proj_vect,p_O5_vect))
-    q = tu2rotquat(theta,in_po_vector)
-    
+    rot_axis = np.cross(p_O5_vect,dna_p_O5_vect)
+    rot_axis /= np.linalg.norm(rot_axis)
+
+    dotp = np.dot(p_O5_vect,dna_p_O5_vect)
+    if np.abs(dotp) > 1:
+        dotp = dotp/np.abs(dotp)
+    theta = np.arccos(dotp)
+    q = tu2rotquat(theta,rot_axis)
+
     #Rotate dye into place   
-    dye_xyz = np.array([quat_vec_rot(row, quat) for row in dye_xyz])
+    dye_xyz = np.array([quat_vec_rot(row, q) for row in dye_xyz])
     dye_ats = [at for at in dye_top.atoms]
     for at in dye_ats:
         if at.name == "P":
@@ -260,11 +253,68 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top):
         elif at.name == "O3'":
             dye_o3 = dye_xyz[at.index]
     
+    p_O5_vect = dye_o5 - dye_P
+    p_O5_vect /= np.linalg.norm(p_O5_vect)
+    print("Final dot between p_O5 and DNA p_o5 vectors (should be 1):",
+            np.dot(p_O5_vect,dna_p_O5_vect))
+
+    #Dye is now rotated so phos_in - ox_out axis is correct. now rotate
+    #the COM to the outside.
+    dye_com = np.average(dye_xyz,axis=0)
+    p_dna_vect = (dna_com - phos_in)/np.linalg.norm(dna_com-phos_in)
+    p_dna_perp = p_dna_vect - np.dot(p_dna_vect,dna_p_O5_vect)*dna_p_O5_vect
+    p_dna_perp /= np.linalg.norm(p_dna_perp)
+    
+    p_dye_vect = (dye_com - dye_P)/np.linalg.norm(dye_com - dye_P)
+    p_dye_perp = p_dye_vect - np.dot(p_dye_vect,dna_p_O5_vect)*dna_p_O5_vect
+    p_dye_perp /= np.linalg.norm(p_dye_perp)
+    
+    dotp = np.dot(p_dye_perp,p_dna_perp)
+    if np.abs(dotp) > 1:
+        dotp = dotp/np.abs(dotp)
+    theta = np.arccos(dotp)
+    #Rotate p_dye_perp by theta+pi/2
+    q = tu2rotquat(theta + np.pi,dna_p_O5_vect)
+
+    dye_xyz = np.array([quat_vec_rot(row, q) for row in dye_xyz])
+    dye_ats = [at for at in dye_top.atoms]
+    for at in dye_ats:
+        if at.name == "P":
+            dye_P = dye_xyz[at.index]
+        elif at.name == "O5'":
+            dye_o5 = dye_xyz[at.index]
+        elif at.name == "O3'":
+            dye_o3 = dye_xyz[at.index]
+    
+    p_dye_vect = (dye_com - dye_P)/np.linalg.norm(dye_com - dye_P)
+    p_dye_perp = p_dye_vect - np.dot(p_dye_vect,dna_p_O5_vect)*dna_p_O5_vect
+    p_dye_perp /= np.linalg.norm(p_dye_perp)
+    dotp = np.dot(p_dye_perp,p_dna_perp)
+    if np.abs(dotp) > 1:
+        dotp = dotp/np.abs(dotp)
+    print("Final dot between p_dye_perp and p_dna_perp vectors (should be -1):",
+            np.dot(p_dye_perp,p_dna_perp))
+    #If dotp > 0.5, rotate by pi
+    if dotp > 0.9:
+        print("Strange rotation error? Flipping dye COM.")
+        q = tu2rotquat(np.pi,dna_p_O5_vect)
+        dye_xyz = np.array([quat_vec_rot(row, q) for row in dye_xyz])
+        dye_ats = [at for at in dye_top.atoms]
+        for at in dye_ats:
+            if at.name == "P":
+                dye_P = dye_xyz[at.index]
+            elif at.name == "O5'":
+                dye_o5 = dye_xyz[at.index]
+            elif at.name == "O3'":
+                dye_o3 = dye_xyz[at.index]
+    
+
+
     #Finally: translate dye into place
     disp = phos_in - dye_P
     
     dye_xyz = dye_xyz + disp
-    return dye_xyz
+    return dye_xyz, dye_top
 
 def foo(bar):
     """Init.
@@ -284,7 +334,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f','--file', type=str, default='input.pdb',
         help='Path to PDB of ideal DNA structure, with correct endings.')
-    parser.add_argument('-o','--output', type=str, default='labelled.pdb',
+    parser.add_argument('-o','--output', type=str, default='labelled_dna.pdb',
         help='Path to output labelled PDB.')
     parser.add_argument('-d','--donor', type=int, 
         default=15, help='Index of Cy3 in donor (Ashort) strand. Default=15')
