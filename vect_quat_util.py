@@ -1,8 +1,6 @@
 #!/usr/bin/python
 import numpy as np
 import math as m
-from numba import jit, float64
-from subtool import *
 
 def vector_dot(u,v):
     return np.dot(u,v)
