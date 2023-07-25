@@ -87,8 +87,35 @@ def add_dyes(xyz, top, donor_xyz, donor_top, acceptor_xyz, acceptor_top,
 
     #Combine xyzs and tops:
     labelled_xyz = np.concatenate((trunc_xyz, affine_donor_xyz, affine_acceptor_xyz))
-    labelled_top = trunc_top.join(affine_donor_top)
-    labelled_top = labelled_top.join(affine_acceptor_top)
+    
+    #Manually join the topologies
+    #Donor is on chain 0, acceptor is on chain 1
+    labelled_top = copy.deepcopy(trunc_top)
+    labelled_chains = [ch for ch in labelled_top.chains]
+    
+    #Loop through residues to add donor
+    for don_r in affine_donor_top.residues:
+        #Add residue
+        labelled_top.add_residue("C3N",labelled_chains[0])
+        current_r = labelled_top.residue(-1)
+        #Loop through atoms
+        for don_atom in don_r.atoms:
+            labelled_top.add_atom(don_atom.name,element=don_atom.element,
+                residue=current_r)
+
+    #Loop through residues to add acceptor
+    for acc_r in affine_acceptor_top.residues:
+        #Add residue
+        labelled_top.add_residue(acc_r.name,labelled_chains[1])
+        next_r = labelled_top.residue(-1)
+        #Loop through atoms
+        for acc_atom in acc_r.atoms:
+            labelled_top.add_atom(acc_atom.name,element=acc_atom.element,
+                residue=next_r)
+    
+    #Old-style joining, makes chain ends:
+    #labelled_top = trunc_top.join(affine_donor_top)
+    #labelled_top = labelled_top.join(affine_acceptor_top)
 
     return labelled_xyz, labelled_top
 
