@@ -86,9 +86,47 @@ def add_dyes(xyz, top, donor_xyz, donor_top, acceptor_xyz, acceptor_top,
         a_ox_in, a_ox_out, acceptor_xyz,acceptor_top,a_dna_com)
 
     #Combine xyzs and tops:
-    labelled_xyz = np.concatenate((trunc_xyz, affine_donor_xyz, affine_acceptor_xyz))
+    #labelled_xyz = np.concatenate((trunc_xyz, affine_donor_xyz, affine_acceptor_xyz))
     
-    #Manually join the topologies
+    #Manually construct new topology obeying proper sequencing
+    labelled_top = md.Topology()
+    labelled_xyz = []#Concatenate-able list of np.array
+
+    #loop over all residues
+    res_index = 0
+    old_chains = [ch for ch in trunc_top.chains]
+    for chain_i, chain in enumerate(old_chains):
+        labelled_top.add_chain()
+        curr_ch = labelled_top.chain(-1)
+        for res_i, res in enumerate(chain.residues):
+            #If you hit the dye residue, first add the dye
+            if chain_i == 0 and res_i == donor_ind:
+                donor_res = [r for r in affine_donor_top.residues][0]
+                labelled_top.add_residue(name='C3N',chain=curr_ch)
+                curr_res = labelled_top.residue(-1)
+                for d_at in donor_res.atoms:
+                    labelled_top.add_atom(name=d_at.name,
+                        element=d_at.element, residue=curr_res)
+                labelled_xyz += [affine_donor_xyz]
+            elif chain_i == 1 and res_i == acceptor_ind:
+                acc_res = [r for r in affine_acceptor_top.residues][0]
+                labelled_top.add_residue(name='C5N',chain=curr_ch)
+                curr_res = labelled_top.residue(-1)
+                for acc_at in acc_res.atoms:
+                    labelled_top.add_atom(name=acc_at.name,
+                        element=acc_at.element, residue=curr_res)
+                labelled_xyz += [affine_acceptor_xyz]
+            
+            #Now, add the normal residue and atoms
+            labelled_top.add_residue(name=res.name,chain=curr_ch)
+            curr_res = labelled_top.residue(-1)
+            for at in res.atoms:
+                labelled_top.add_atom(name=at.name,element=at.element,
+                    residue=curr_res)
+                labelled_xyz += [np.reshape(trunc_xyz[at.index],(1,-1))]
+    labelled_xyz = np.concatenate(labelled_xyz)
+    return labelled_xyz, labelled_top
+    print("Unreachable code! legacy version of same code.")
     #Donor is on chain 0, acceptor is on chain 1
     labelled_top = copy.deepcopy(trunc_top)
     labelled_chains = [ch for ch in labelled_top.chains]
