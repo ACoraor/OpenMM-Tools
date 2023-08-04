@@ -238,15 +238,17 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy5_top,
     xml_root = xml.getroot()    
     
     #Get names of cy3, cy5 atoms
-    cy3_names = list(set([at.name for at in cy3_top.atoms]))
-    cy5_names = list(set([at.name for at in cy5_top.atoms]))
-    cy3_names.sort()
-    cy5_names.sort()
+    cy3_names = set([at.name for at in cy3_top.atoms])
+    cy5_names = set([at.name for at in cy5_top.atoms])
+    #cy3_names.sort()
+    #cy5_names.sort()
     
     
     #Create map from atom name to class, charge.
     cy3_charges = amber_charges[0]
     cy5_charges = amber_charges[1]
+    cy3_bonds = amber_bonds[0]
+    cy5_bonds = amber_bonds[1]
     cy3_charge_dict = {}
     for i in range(len(cy3_charges['atom1'])):
         at1 = cy3_charges['atom1'][i]
@@ -310,11 +312,20 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy5_top,
             charge_data = ['DNA-Pg','1.1659']
         new_at.set('type',charge_data[0][:-1])
         new_at.set('charge', str(np.float32(charge_data[1])))
+    #Add bonds
+    atom1 = cy3_bonds['a1']
+    atom2 = cy3_bonds['a2']
+    for i in range(len(atom1)):
+        if atom1[i] in cy3_names and atom2[i] in cy3_names:
+            new_bond = ET.SubElement(cy3_res,"Bond")
+            new_bond.set('atomName1',atom1[i])
+            new_bond.set('atomName2',atom2[i])
+
     #Add external bonds
     ext_p = ET.SubElement(cy3_res,'ExternalBond')
     ext_p.set('atomName',"P")
     ext_o = ET.SubElement(cy3_res,'ExternalBond')
-    ext_p.set('atomName',"O3'")
+    ext_o.set('atomName',"O3'")
 
     for at in cy5_top.atoms:
         new_at = ET.SubElement(cy5_res,"Atom")
@@ -331,11 +342,21 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy5_top,
             charge_data = ['DNA-Pg','1.1659']
         new_at.set('type',charge_data[0][:-1])
         new_at.set('charge', str(np.float32(charge_data[1])))
+    
+    #Add bonds
+    atom1 = cy5_bonds['a1']
+    atom2 = cy5_bonds['a2']
+    for i in range(len(atom1)):
+        if atom1[i] in cy5_names and atom2[i] in cy5_names:
+            new_bond = ET.SubElement(cy5_res,"Bond")
+            new_bond.set('atomName1',atom1[i])
+            new_bond.set('atomName2',atom2[i])
+
     #Add external bonds
-    ext_p = ET.SubElement(cy3_res,'ExternalBond')
+    ext_p = ET.SubElement(cy5_res,'ExternalBond')
     ext_p.set('atomName',"P")
-    ext_o = ET.SubElement(cy3_res,'ExternalBond')
-    ext_p.set('atomName',"O3'")
+    ext_o = ET.SubElement(cy5_res,'ExternalBond')
+    ext_o.set('atomName',"O3'")
     #Populate xml_shell
  
     basic_str = ET.tostring(new_root,encoding='unicode')

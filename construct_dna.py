@@ -379,6 +379,16 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top,dna_com):
     disp = phos_in - dye_P
     
     dye_xyz = dye_xyz + disp
+
+    #Write just dye to PDB
+    n_atoms = len([at for at in dye_top.atoms])
+    is_donor = n_atoms < 73
+    if is_donor:
+        fn = "affine_cy3.pdb"
+    else:
+        fn = "affine_cy5.pdb"
+    pdb = md.formats.PDBTrajectoryFile(fn,mode='w')
+    pdb.write(10.*dye_xyz,dye_top)
     return dye_xyz, dye_top
 
 def foo(bar):

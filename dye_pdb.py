@@ -166,17 +166,17 @@ def add_links(xyz,top):
 
     #Add carbon linkers
     sym = "C"
-    top.add_atom("CG",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("C99",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "H"
-    top.add_atom("HG",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("H98",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "H"
-    top.add_atom("HI",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("H97",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "C"
-    top.add_atom("CI",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("C96",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "H"
-    top.add_atom("HN",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("H95",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "H"
-    top.add_atom("HN",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("H94",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "O"
     top.add_atom("O5'",md.element.Element.getBySymbol(sym),residue=res1)
 
@@ -201,7 +201,14 @@ def add_links(xyz,top):
     inds = [i for i in range(len(ats)) if i != h2p_i]
     top = top.subset(inds)
 
-    return xyz, top
+    #Create fresh
+    new_top = md.Topology()
+    new_top.add_chain()
+    new_top.add_residue(name=top.residue(0).name,chain=new_top.chain(0))
+    for at in top.atoms:
+        new_top.add_atom(at.name,at.element,residue=new_top.residue(0))
+
+    return xyz, new_top
 
 
 def foo(bar):
