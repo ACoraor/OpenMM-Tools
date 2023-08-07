@@ -25,15 +25,15 @@ def main():
     cy3_amber_top, cy5_amber_top = load_amber_pdbs(args.donor,args.acceptor)
 
     #Load new pdbs
-    cy3_top, cy5_top = load_label_pdbs()
+    cy3_top, cy3_xyz, cy5_top, cy5_xyz = load_label_pdbs()
 
     #Load AMBER-dyes forcefield
     amber_charges, amber_bonds, amber_impropers = load_amber_ffs(args.ff
         ,cy3_amber_top,cy5_amber_top,cy3_top,cy5_top)
     
     #Write ff xml
-    write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy5_top,
-        cy3_amber_top,cy5_amber_top,args.gaff,args.output)
+    write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz,
+        cy5_top, cy5_xyz, cy3_amber_top,cy5_amber_top,args.gaff,args.output)
 
     print("DNA dye pdbs written! Exiting...")
 
@@ -199,16 +199,20 @@ def load_label_pdbs(donor_path="cy3_dna.pdb",acceptor_path="cy5_dna.pdb"):
     Returns:
         cy3_top: *md.Topology*
             Loaded cy3 label topology.
+        cy3_xyz: *np.array*, shape: (n_atoms,3)
+            Positions of particles in the Cy3 dye with linkers.
         cy5_top: *md.Topology*
             Loaded cy5 label topology.
+        cy5_xyz: *np.array*, shape: (n_atoms,3)
+            Positions of particles in the Cy5 dye with linkers.
     """
     cy3 = md.load_pdb(donor_path)
     cy5 = md.load_pdb(acceptor_path)
 
-    return cy3.top, cy5.top
+    return cy3.top, cy3.xyz[0],cy5.top,cy5.xyz[0]
 
-def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy5_top,
-        cy3_amber_top,cy5_amber_top,gaff,output):
+def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz, 
+        cy5_top,cy5_xyz,cy3_amber_top,cy5_amber_top,gaff,output):
     """Create OpenMM-formatted forcefield file based on AMBER-dyes
     parameters for the cy3 and cy5 residues.
 
@@ -222,8 +226,12 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy5_top,
             DataFrame with improper dihedrals.
         cy3_top: *md.Topology*
             Loaded cy3 label topology.
+        cy3_xyz: *np.array*, shape: (n_atoms,3)
+            Positions of particles in the Cy3 dye with linkers.
         cy5_top: *md.Topology*
             Loaded cy5 label topology.
+        cy5_xyz: *np.array*, shape: (n_atoms,3)
+            Positions of particles in the Cy5 dye with linkers.
         cy3_amber_top: *md.Topology*
             Loaded Cy3_L1N Topology.
         cy5_amber_top: *md.Topology*
@@ -312,14 +320,29 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy5_top,
             charge_data = ['DNA-Pg','1.1659']
         new_at.set('type',charge_data[0][:-1])
         new_at.set('charge', str(np.float32(charge_data[1])))
+    
+
     #Add bonds
-    atom1 = cy3_bonds['a1']
-    atom2 = cy3_bonds['a2']
-    for i in range(len(atom1)):
-        if atom1[i] in cy3_names and atom2[i] in cy3_names:
-            new_bond = ET.SubElement(cy3_res,"Bond")
-            new_bond.set('atomName1',atom1[i])
-            new_bond.set('atomName2',atom2[i])
+    bond_max_dist = 0.18 
+    cy3_atoms = [at for at in cy3_top.atoms]
+    for i in range(len(cy3_atoms)):
+        for j in range(i+1,len(cy3_atoms)):
+            bond_len = np.linalg.norm(cy3_xyz[i] - cy3_xyz[j])
+            if bond_len < bond_max_dist:
+                #Add bond to ffxml
+                new_bond = ET.SubElement(cy3_res,"Bond")
+                new_bond.set('atomName1',cy3_atoms[i].name)
+                new_bond.set('atomName2',cy3_atoms[j].name)
+
+    #atom1 = cy3_bonds['a1']
+    #atom2 = cy3_bonds['a2']
+    #for i in range(len(atom1)):
+    #    if atom1[i] in cy3_names and atom2[i] in cy3_names:
+    #        new_bond = ET.SubElement(cy3_res,"Bond")
+    #        new_bond.set('atomName1',atom1[i])
+    #        new_bond.set('atomName2',atom2[i])
+
+    
 
     #Add external bonds
     ext_p = ET.SubElement(cy3_res,'ExternalBond')
@@ -344,13 +367,24 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy5_top,
         new_at.set('charge', str(np.float32(charge_data[1])))
     
     #Add bonds
-    atom1 = cy5_bonds['a1']
-    atom2 = cy5_bonds['a2']
-    for i in range(len(atom1)):
-        if atom1[i] in cy5_names and atom2[i] in cy5_names:
-            new_bond = ET.SubElement(cy5_res,"Bond")
-            new_bond.set('atomName1',atom1[i])
-            new_bond.set('atomName2',atom2[i])
+    bond_max_dist = 0.18 
+    cy5_atoms = [at for at in cy5_top.atoms]
+    for i in range(len(cy5_atoms)):
+        for j in range(i+1,len(cy5_atoms)):
+            bond_len = np.linalg.norm(cy5_xyz[i] - cy5_xyz[j])
+            if bond_len < bond_max_dist:
+                #Add bond to ffxml
+                new_bond = ET.SubElement(cy5_res,"Bond")
+                new_bond.set('atomName1',cy5_atoms[i].name)
+                new_bond.set('atomName2',cy5_atoms[j].name)
+    
+    #atom1 = cy5_bonds['a1']
+    #atom2 = cy5_bonds['a2']
+    #for i in range(len(atom1)):
+    #    if atom1[i] in cy5_names and atom2[i] in cy5_names:
+    #        new_bond = ET.SubElement(cy5_res,"Bond")
+    #        new_bond.set('atomName1',atom1[i])
+    #        new_bond.set('atomName2',atom2[i])
 
     #Add external bonds
     ext_p = ET.SubElement(cy5_res,'ExternalBond')
