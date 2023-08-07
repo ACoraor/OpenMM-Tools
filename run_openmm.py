@@ -25,8 +25,11 @@ def main():
 
 
     #Load system
-    pdb, ff = load_system(args.pdb,args.amber,args.water)
-    
+    pdb, ff = load_system(args.pdb,args.amber,args.water,args.gaff)
+
+    #Create GAFF templates for OpenMM
+    #pdb,ff = create_dye_templates(pdb,ff)    
+
     #Set up simulation environment
     simulation = generate_simulation(pdb,ff)
 
@@ -36,7 +39,7 @@ def main():
     print("Simulation complete.")
     print("results:",repr(results))
 
-def load_system(pdb,amber,water):
+def load_system(pdb,amber,water,gaff):
     """Load and parse pdb, and amber/water parameter files.
 
     Parameters:
@@ -45,7 +48,9 @@ def load_system(pdb,amber,water):
 	amber: *str*
 	    Path to amber parameter xml.
 	water: *str*
-	    Path to SPCE xml.
+                Path to SPCE xml.
+	gaff: *str*
+	    Path to GAFF xml.
     Returns:
 	pdb: *openmm.app.PDBFile*
 	    Loaded DNA construct pdb
@@ -55,8 +60,9 @@ def load_system(pdb,amber,water):
     pdb = app.PDBFile(pdb)
     
 
-    ff = app.ForceField(amber,water)
+    ff = app.ForceField(amber,water,gaff)
     return pdb,ff
+
 
 def generate_simulation(pdb, ff):
     """Generate an openmm simulation.
@@ -87,6 +93,29 @@ def generate_simulation(pdb, ff):
     #Create standard bonds
     topology.loadBondDefinitions(args.amber)
     topology.createStandardBonds()
+    
+    #Manually add bonds for C3N, C5N residues
+    rs = [res for res in topology.residues]
+    dye_names = ["C3N","C5N"]
+    dye_res = [r for r in rs if r.name in dye_names]
+    bond_dist = 0.18 #nanometers
+    for dye_r in dye_res:
+        dye_ats = [at for at in dye_r.atoms()]
+
+        for i in range(len(dye_ats)):
+            for j in range(i+1,len(dye_ats)):
+                index_i = dye_ats[i].index
+                index_j = dye_ats[j].index
+                #Manually cast Vec3 to numpy array
+                dist = (np.array([float(pos[index_i].x),float(pos[index_i].y),
+                    float(pos[index_i].z)]) - np.array([float(pos[index_j].x),
+                    float(pos[index_j].y),float(pos[index_j].z)]))
+                print("dist:",dist)
+                if np.linalg.norm(dist) < bond_dist:
+                    topology.addBond(dye_ats[i],dye_ats[j])
+   
+    
+
     #bonds = [b for b in topology.bonds()]
     #print("All bonds:",bonds)
     
@@ -191,6 +220,8 @@ if __name__ == '__main__':
 	help="Path to Amber parameter file.")
     parser.add_argument('-w','--water',type=str,default = "spce_standard.xml",
 	help="Path to Water/SPCE parameter file.")
+    parser.add_argument('-g','--gaff',type=str,default = "gaff-aec.xml",
+	help="Path to GAFF parameter file.")
     parser.add_argument('-t','--timesteps',type=int,default = 10000000,
 	help="Number of timesteps for simulation.")
 	
