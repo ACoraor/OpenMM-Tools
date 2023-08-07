@@ -33,6 +33,7 @@ def main():
     #Set up simulation environment
     simulation = generate_simulation(pdb,ff)
 
+    print("Simulation generated. Running...")
     #Run the system
     results = run_simulation(simulation,args.timesteps)
 
@@ -110,9 +111,19 @@ def generate_simulation(pdb, ff):
                 dist = (np.array([float(pos[index_i].x),float(pos[index_i].y),
                     float(pos[index_i].z)]) - np.array([float(pos[index_j].x),
                     float(pos[index_j].y),float(pos[index_j].z)]))
-                print("dist:",dist)
                 if np.linalg.norm(dist) < bond_dist:
                     topology.addBond(dye_ats[i],dye_ats[j])
+        #Manually add bonds to the prior and later residue atoms
+        dye_phos = [at for at in dye_ats if at.name=="P"][0]
+        dye_O3 = [at for at in dye_ats if at.name=="O3'"][0]
+        #Bond dye O3' to phosphate from earlier residue
+        prev_res = rs[dye_r.index-1]
+        prev_res_O3 = [at for at in prev_res.atoms() if at.name=="O3'"][0]
+        topology.addBond(dye_phos,prev_res_O3)
+        #Bond dye phosphate to O3' from next residue
+        next_res = rs[dye_r.index+1]
+        next_res_phos = [at for at in next_res.atoms() if at.name=="P"][0]
+        topology.addBond(dye_O3,next_res_phos)
    
     
 
