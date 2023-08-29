@@ -21,34 +21,27 @@ def main():
     """Create OpenMM Forcefield files based on the ff files from AMBER
     dyes.
     """
-    #Load basic pdb
-    cy3_amber_top, cy5_amber_top = load_amber_pdbs(args.donor,args.acceptor)
-
     #Load new pdbs
     cy3_top, cy3_xyz, cy5_top, cy5_xyz = load_label_pdbs()
 
     #Load AMBER-dyes forcefield
     amber_charges, amber_bonds, amber_impropers = load_amber_ffs(args.ff
-        ,cy3_amber_top,cy5_amber_top,cy3_top,cy5_top)
+        ,cy3_top,cy5_top)
     
     #Write ff xml
     write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz,
-        cy5_top, cy5_xyz, cy3_amber_top,cy5_amber_top,args.gaff,args.output)
+        cy5_top, cy5_xyz,args.gaff,args.output)
 
     print("DNA dye pdbs written! Exiting...")
 
 
-def load_amber_ffs(dye_path,cy3_amber_top,cy5_amber_top,cy3_top,cy5_top):
+def load_amber_ffs(dye_path,cy3_top,cy5_top):
     """Load AMBER-dyes gromacs-style forcefield file.
 
     Parameters:
         dye_path: *str*
             Path to AMBER dye parameter root directory, typically
             amber99sb_dyes.ff.
-        cy3_amber_top: *md.Topology*
-            Loaded Cy3_L1N Topology.
-        cy5_amber_top: *md.Topology*
-            Loaded Cy5_L1N Topology.
         cy3_top: *md.Topology*
             Loaded cy3 label topology.
         cy5_top: *md.Topology*
@@ -168,26 +161,6 @@ def load_amber_ffs(dye_path,cy3_amber_top,cy5_amber_top,cy3_top,cy5_top):
         [cy3_improper_df, cy5_improper_df])
 
 
-def load_amber_pdbs(donor_path,acceptor_path):
-    """Load the pdbs at each path.
-
-    Parameters:
-        donor_path: *str*
-            Path to Cy3_L1N.pdb
-        acceptor_path: *str*
-            Path to Cy5_L1N.pdb
-    Returns:
-        cy3_amber_top: *md.Topology*
-            Loaded Cy3_L1N Topology.
-        cy5_amber_top: *md.Topology*
-            Loaded Cy5_L1N Topology.
-    """
-    cy3 = md.load_pdb(args.donor)
-    cy5 = md.load_pdb(args.acceptor)
-
-    return cy3.top, cy5.top
-
-
 def load_label_pdbs(donor_path="cy3_dna.pdb",acceptor_path="cy5_dna.pdb"):
     """Load the processed dna label pdbs at each path.
 
@@ -212,7 +185,7 @@ def load_label_pdbs(donor_path="cy3_dna.pdb",acceptor_path="cy5_dna.pdb"):
     return cy3.top, cy3.xyz[0],cy5.top,cy5.xyz[0]
 
 def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz, 
-        cy5_top,cy5_xyz,cy3_amber_top,cy5_amber_top,gaff,output):
+        cy5_top,cy5_xyz,gaff,output):
     """Create OpenMM-formatted forcefield file based on AMBER-dyes
     parameters for the cy3 and cy5 residues.
 
@@ -232,10 +205,6 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz,
             Loaded cy5 label topology.
         cy5_xyz: *np.array*, shape: (n_atoms,3)
             Positions of particles in the Cy5 dye with linkers.
-        cy3_amber_top: *md.Topology*
-            Loaded Cy3_L1N Topology.
-        cy5_amber_top: *md.Topology*
-            Loaded Cy5_L1N Topology.
         gaff: *str*
             Path to GAFF xml.
         output: *str*
@@ -278,7 +247,8 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz,
     date_gen = ET.SubElement(info,'DateGenerated')
     date_gen.set('date',str(datetime.date.today()))
     atomtypes = ET.SubElement(new_root,'AtomTypes')
-    for name in cy3_names:
+    
+    for name in list(cy3_names):
         if name not in cy3_charge_dict:
             if name[0] == "C" and int(name[1:]) > 85:
                 #Aliphatic carbon
@@ -296,6 +266,13 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz,
                 aliph_hydrogen.set('class','hc')
                 aliph_hydrogen.set('mass','1.008')
                 #aliph_hydrogen.set('charge','0.0229')
+        #elif name in cy3_charge_dict:
+            #Atom found in cy3 charge dict
+        #    if name[0] == "C":
+        #        native_carbon = ET.SubElement(atomtypes,'Type')
+        #        native_carbon.set('element','C')
+        #        native_carbon.set(
+             
     res_root = ET.SubElement(new_root,'Residues')
 
     #Create residue template
@@ -314,7 +291,18 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz,
             charge_data = ['c3g','-0.073']
         elif "H" in at.name:
             charge_data = ['hcg','0.0229']
+        elif "OP" in at.name:
+            #Phosphate oxygen! Use bsc1 params
+            charge_data = ['DNA-O2g','-0.7761']
+        elif at.name in ["O3'","O5'"]:
+            #Linker terminal oxygen! Use bsc1 params
+            if at.name == "O3'":
+                q = '-0.5232'
+            elif at.name == "O5'":
+                q = '-0.4954'
+            charge_data = ['DNA-OSg',q]
         elif "O" in at.name:
+            #All other oxygens
             charge_data = ['og','-0.6458']
         elif "P" in at.name:
             charge_data = ['DNA-Pg','1.1659']
@@ -353,13 +341,24 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz,
     for at in cy5_top.atoms:
         new_at = ET.SubElement(cy5_res,"Atom")
         new_at.set('name',at.name)
-        if at.name in cy3_charge_dict:
+        if at.name in cy5_charge_dict:
             charge_data = cy5_charge_dict[at.name]
         elif "C" in at.name:
             charge_data = ['c3g','-0.073']
         elif "H" in at.name:
             charge_data = ['hcg','0.0229']
+        elif "OP" in at.name:
+            #Phosphate oxygen! Use bsc1 params
+            charge_data = ['DNA-O2g','-0.7761']
+        elif at.name in ["O3'","O5'"]:
+            #Linker terminal oxygen! Use bsc1 params
+            if at.name == "O3'":
+                q = '-0.5232'
+            elif at.name == "O5'":
+                q = '-0.4954'
+            charge_data = ['DNA-OSg',q]
         elif "O" in at.name:
+            #All other oxygens
             charge_data = ['og','-0.6458']
         elif "P" in at.name:
             charge_data = ['DNA-Pg','1.1659']
@@ -391,7 +390,31 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz,
     ext_p.set('atomName',"P")
     ext_o = ET.SubElement(cy5_res,'ExternalBond')
     ext_o.set('atomName',"O3'")
-    #Populate xml_shell
+
+    #Add HarmonicBond values
+    harmbond_root = ET.SubElement(new_root,'HarmonicBondForce')
+    
+    #linker carbon - terminal O5'/O3'
+    bond1 = ET.SubElement(harmbond_root,'Bond')
+    bond1.set("type1",'c3')
+    bond1.set("type2",'DNA-OS')
+    bond1.set('length',"0.13165000000000002")#Gaff parameters
+    bond1.set('k',"376476.3199999999")
+   
+
+
+    #Add harmonic angle restraint
+    harmangle_root = ET.SubElement(new_root,'HarmonicAngleForce')
+    #linker carbon - oxygen - phosphate angle: DNA
+    angle1 = ET.SubElement(harmangle_root,'Angle')
+    angle1.set('type1','DNA-P')
+    angle1.set('type2','DNA-OS')
+    angle1.set('type3','c3')
+    angle1.set('angle',"2.1031217486531673")
+    angle1.set('k',"836.8000000000001")
+    
+
+    #Write to file
  
     basic_str = ET.tostring(new_root,encoding='unicode')
     #with open(output,'w') as f:   
