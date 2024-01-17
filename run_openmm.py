@@ -6,12 +6,14 @@ import numpy as np
 import argparse
 #Following openMM docs
 from openmm import *
+import openmm
 import sys
 import openmm.app as app
 import openmm.unit as unit
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import mdtraj as md
 import pysages
 from openmm.vec3 import Vec3
 
@@ -22,17 +24,16 @@ def main():
     #pdb = "input.pdb"
     #amber = "DNA.bsc1.xml"
     #water = "spce_standard.xml"
-
+    print("Starting system.")
 
     #Load system
-    pdb, ff = load_system(args.pdb,args.amber,args.water,args.gaff)
+    pdb, ff = load_system(args.pdb,args.amber,args.water,args.dyes,args.gaff)
 
     #Create GAFF templates for OpenMM
     #pdb,ff = create_dye_templates(pdb,ff)    
 
     #Set up simulation environment
     simulation = generate_simulation(pdb,ff)
-
     print("Simulation generated. Running...")
     #Run the system
     results = run_simulation(simulation,args.timesteps)
@@ -40,7 +41,7 @@ def main():
     print("Simulation complete.")
     print("results:",repr(results))
 
-def load_system(pdb,amber,water,gaff):
+def load_system(pdb,amber,water,dyes,gaff):
     """Load and parse pdb, and amber/water parameter files.
 
     Parameters:
@@ -50,6 +51,8 @@ def load_system(pdb,amber,water,gaff):
 	    Path to amber parameter xml.
 	water: *str*
                 Path to SPCE xml.
+	dyes: *str*
+                Path to gaff-aec xml.
 	gaff: *str*
 	    Path to GAFF xml.
     Returns:
@@ -61,7 +64,7 @@ def load_system(pdb,amber,water,gaff):
     pdb = app.PDBFile(pdb)
     
 
-    ff = app.ForceField(amber,water,gaff)
+    ff = app.ForceField(amber,water,dyes,gaff)
     return pdb,ff
 
 
@@ -96,9 +99,53 @@ def generate_simulation(pdb, ff):
     topology.createStandardBonds()
     
     #Manually add bonds for C3N, C5N residues
-    rs = [res for res in topology.residues]
+    rs = [res for res in topology.residues()]
+
     dye_names = ["C3N","C5N"]
     dye_res = [r for r in rs if r.name in dye_names]
+    print("dye_res:",dye_res)
+
+    #Manually check: if any bonds exist between non-dye residues and dye res,
+    #Delete them.
+    all_dye_atoms = []
+    for dye_r in dye_res:
+        all_dye_atoms = all_dye_atoms + [at for at in dye_r.atoms()]
+    all_dye_atoms = set(all_dye_atoms)
+    
+    bond_rms = []
+    for bond in topology.bonds():
+        at1_in_dye = bond[0] in all_dye_atoms
+        at2_in_dye = bond[1] in all_dye_atoms
+        if at1_in_dye != at2_in_dye:
+            bond_rms.append(bond)
+
+    #Rebuild topology without bond_rms
+    copy_top = app.topology.Topology()
+    for chain in topology.chains():
+        copy_top.addChain(id=chain.id)
+        curr_ch = [ch for ch in copy_top.chains()][-1]
+        for res in chain.residues():
+            copy_top.addResidue(name=res.name,chain=curr_ch)
+            curr_res = [r for r in copy_top.residues()][-1]
+            for atom in res.atoms():
+                copy_top.addAtom(name=atom.name,element=atom.element,
+                    residue = curr_res)
+    bond_rms = set(bond_rms)
+    copy_ats = [at for at in copy_top.atoms()]
+    for bond in topology.bonds():
+        if bond not in bond_rms:
+            at1 = copy_ats[bond[0].index]
+            at2 = copy_ats[bond[1].index]
+            copy_top.addBond(at1,at2)
+
+    print("Old topology:",topology)
+    print("New topology:",copy_top)
+    print("bond_rms:",list(bond_rms))
+    topology = copy_top
+
+    rs = [res for res in topology.residues()]
+    dye_res = [r for r in rs if r.name in dye_names]
+
     bond_dist = 0.18 #nanometers
     for dye_r in dye_res:
         dye_ats = [at for at in dye_r.atoms()]
@@ -125,20 +172,17 @@ def generate_simulation(pdb, ff):
         next_res_phos = [at for at in next_res.atoms() if at.name=="P"][0]
         topology.addBond(dye_O3,next_res_phos)
    
-    
 
-    #bonds = [b for b in topology.bonds()]
-    #print("All bonds:",bonds)
     
     #res = [r for r in topology.residues()]
     #res[0].name = "DG5" 
     #Add spce solvent molecules
     modeller = app.modeller.Modeller(topology,pos)
     
-    bounds = Vec3(10.0,10.0,32.0)*unit.nanometer #Change
+    bounds = Vec3(5.0,5.0,32.0)*unit.nanometer #Change
     #dna_ff = app.ForceField(args.amber) 
     modeller.loadHydrogenDefinitions(args.amber)
-    print("Adding hydrogens...")
+    #print("Adding hydrogens...")
     modeller.addHydrogens(ff)
     print("Adding water...")
     modeller.addSolvent(ff,boxSize=bounds,model='spce')
@@ -160,7 +204,7 @@ def generate_simulation(pdb, ff):
 
     integrator = openmm.LangevinIntegrator(T, 1 / unit.picosecond, dt)
 
-    simulation = app.Simulation(topology, system, integrator)
+    simulation = app.Simulation(modeller.topology, system, integrator)
     simulation.context.setPositions(modeller.positions)
 
     #Set PBC ?
@@ -192,22 +236,35 @@ def run_simulation(simulation,n_ts=10000):
     with open("minstate.xml",'w') as f:
         simulation.saveState(f)
 
-        traj_int = 10000
+    traj_int = 10000
 
     #Add reporters
     simulation.reporters.append(app.StateDataReporter(sys.stdout,5000,
         step=True,potentialEnergy=True,temperature=True))
-    #simulation.reporters.append(app.PDBReporter('output.pdb',50))
-	    
+    
+    relevant_inds = np.arange(4205) # Manually counted)
+    simulation.reporters.append(md.reporters.HDF5Reporter('output.h5',5000,
+        atomSubset=relevant_inds))
+    #simulation.reporters.append(app.PDBReporter('output.pdb',5000))
+
+
 
     #Run simulation
     print("Running!")
-	
+
+    
+    #Old style running:
     for i in range(n_ts//traj_int):
         simulation.step(traj_int)
-        fn = "state_%s.xml" % i
+        pdb_fn = 'structure_%s.pdb' % i
+        #app.PDBFile.writeFile(simulation.topology,simulation.getpositions,pdb_fn) 
+        #print("simulation.topology:",simulation.topology())
+        #print("simulation positions:",simulation.getPositions())
+        
+        fn = "restart_%s.xml" % (i % 2)
         with open(fn,'w') as f:
             simulation.saveState(f)
+    
     print("Finished!")
     return simulation
 
@@ -231,7 +288,9 @@ if __name__ == '__main__':
 	help="Path to Amber parameter file.")
     parser.add_argument('-w','--water',type=str,default = "spce_standard.xml",
 	help="Path to Water/SPCE parameter file.")
-    parser.add_argument('-g','--gaff',type=str,default = "gaff-aec.xml",
+    parser.add_argument('-d','--dyes',type=str,default = "gaff-aec.xml",
+	help="Path to dyes parameter file.")
+    parser.add_argument('-g','--gaff',type=str,default = "gaff.xml",
 	help="Path to GAFF parameter file.")
     parser.add_argument('-t','--timesteps',type=int,default = 10000000,
 	help="Number of timesteps for simulation.")
