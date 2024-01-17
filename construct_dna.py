@@ -246,7 +246,7 @@ def get_phos_ox(xyz, top,index, is_donor):
             phos_in = xyz[at.index]
         if at.name == "OP1":
             ox_in = xyz[at.index]
-        elif at.name == "O5'":
+        elif at.name == "O3'":
             ox_out = xyz[at.index]
 
     dna_com = np.average(xyz[[at.index for at in dye_res_atoms]],axis=0)
@@ -291,17 +291,17 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top,dna_com):
             dye_o3 = dye_xyz[at.index]
 
     #Now: Calculate angle to rotate along PO vector to align O5
-    p_O5_vect = dye_o5 - dye_P
-    dna_p_O5_vect = ox_out - phos_in
+    p_O3_vect = dye_o3 - dye_P
+    dna_p_O3_vect = ox_out - phos_in
 
     #Project dna vector onto the plane of rotation
-    p_O5_vect /= np.linalg.norm(p_O5_vect)
-    dna_p_O5_vect /= np.linalg.norm(dna_p_O5_vect)
+    p_O3_vect /= np.linalg.norm(p_O3_vect)
+    dna_p_O3_vect /= np.linalg.norm(dna_p_O3_vect)
     
-    rot_axis = np.cross(p_O5_vect,dna_p_O5_vect)
+    rot_axis = np.cross(p_O3_vect,dna_p_O3_vect)
     rot_axis /= np.linalg.norm(rot_axis)
 
-    dotp = np.dot(p_O5_vect,dna_p_O5_vect)
+    dotp = np.dot(p_O3_vect,dna_p_O3_vect)
     if np.abs(dotp) > 1:
         dotp = dotp/np.abs(dotp)
     theta = np.arccos(dotp)
@@ -318,20 +318,20 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top,dna_com):
         elif at.name == "O3'":
             dye_o3 = dye_xyz[at.index]
     
-    p_O5_vect = dye_o5 - dye_P
-    p_O5_vect /= np.linalg.norm(p_O5_vect)
-    print("Final dot between p_O5 and DNA p_o5 vectors (should be 1):",
-            np.dot(p_O5_vect,dna_p_O5_vect))
+    p_O3_vect = dye_o3 - dye_P
+    p_O3_vect /= np.linalg.norm(p_O3_vect)
+    print("Final dot between p_O3 and DNA p_o3 vectors (should be 1):",
+            np.dot(p_O3_vect,dna_p_O3_vect))
 
     #Dye is now rotated so phos_in - ox_out axis is correct. now rotate
     #the COM to the outside.
     dye_com = np.average(dye_xyz,axis=0)
     p_dna_vect = (dna_com - phos_in)/np.linalg.norm(dna_com-phos_in)
-    p_dna_perp = p_dna_vect - np.dot(p_dna_vect,dna_p_O5_vect)*dna_p_O5_vect
+    p_dna_perp = p_dna_vect - np.dot(p_dna_vect,dna_p_O3_vect)*dna_p_O3_vect
     p_dna_perp /= np.linalg.norm(p_dna_perp)
     
     p_dye_vect = (dye_com - dye_P)/np.linalg.norm(dye_com - dye_P)
-    p_dye_perp = p_dye_vect - np.dot(p_dye_vect,dna_p_O5_vect)*dna_p_O5_vect
+    p_dye_perp = p_dye_vect - np.dot(p_dye_vect,dna_p_O3_vect)*dna_p_O3_vect
     p_dye_perp /= np.linalg.norm(p_dye_perp)
     
     dotp = np.dot(p_dye_perp,p_dna_perp)
@@ -339,7 +339,7 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top,dna_com):
         dotp = dotp/np.abs(dotp)
     theta = np.arccos(dotp)
     #Rotate p_dye_perp by theta+pi/2
-    q = tu2rotquat(theta + np.pi,dna_p_O5_vect)
+    q = tu2rotquat(theta + np.pi,dna_p_O3_vect)
 
     dye_xyz = np.array([quat_vec_rot(row, q) for row in dye_xyz])
     dye_ats = [at for at in dye_top.atoms]
@@ -352,7 +352,7 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top,dna_com):
             dye_o3 = dye_xyz[at.index]
     
     p_dye_vect = (dye_com - dye_P)/np.linalg.norm(dye_com - dye_P)
-    p_dye_perp = p_dye_vect - np.dot(p_dye_vect,dna_p_O5_vect)*dna_p_O5_vect
+    p_dye_perp = p_dye_vect - np.dot(p_dye_vect,dna_p_O3_vect)*dna_p_O3_vect
     p_dye_perp /= np.linalg.norm(p_dye_perp)
     dotp = np.dot(p_dye_perp,p_dna_perp)
     if np.abs(dotp) > 1:
@@ -362,7 +362,7 @@ def affine_translate(phos_in, ox_in, ox_out,dye_xyz,dye_top,dna_com):
     #If dotp > 0.5, rotate by pi
     if dotp > 0.9:
         print("Strange rotation error? Flipping dye COM.")
-        q = tu2rotquat(np.pi,dna_p_O5_vect)
+        q = tu2rotquat(np.pi,dna_p_O3_vect)
         dye_xyz = np.array([quat_vec_rot(row, q) for row in dye_xyz])
         dye_ats = [at for at in dye_top.atoms]
         for at in dye_ats:

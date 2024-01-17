@@ -106,7 +106,7 @@ def add_links(xyz,top):
     top.add_atom(sym,md.element.Element.getBySymbol(sym),residue=res1)
 
     sym = "O"
-    top.add_atom("O3'",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("O5'",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "O"
     top.add_atom("OP1",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "O"
@@ -166,19 +166,19 @@ def add_links(xyz,top):
 
     #Add carbon linkers
     sym = "C"
-    top.add_atom("C99",md.element.Element.getBySymbol(sym),residue=res1)
-    sym = "H"
-    top.add_atom("H98",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("C98",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "H"
     top.add_atom("H97",md.element.Element.getBySymbol(sym),residue=res1)
-    sym = "C"
-    top.add_atom("C96",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "H"
-    top.add_atom("H95",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("H96",md.element.Element.getBySymbol(sym),residue=res1)
+    sym = "C"
+    top.add_atom("C95",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "H"
     top.add_atom("H94",md.element.Element.getBySymbol(sym),residue=res1)
+    sym = "H"
+    top.add_atom("H93",md.element.Element.getBySymbol(sym),residue=res1)
     sym = "O"
-    top.add_atom("O5'",md.element.Element.getBySymbol(sym),residue=res1)
+    top.add_atom("O3'",md.element.Element.getBySymbol(sym),residue=res1)
 
     #All carbons added
     C1p = xyz[c2p_i]+d1

@@ -74,7 +74,6 @@ def load_amber_ffs(dye_path,cy3_top,cy5_top):
     cy3_rtp_path = os.path.join(dye_path,'cy3.rtp')
     cy5_rtp_path = os.path.join(dye_path,'cy5.rtp')
 
-
    
     #Parse amino acids for pandas
     with open(cy3_rtp_path,'r') as f:
@@ -156,6 +155,10 @@ def load_amber_ffs(dye_path,cy3_top,cy5_top):
     cy5_improper_df['a3'] = cy5_improper_a3
     cy5_improper_df['a4'] = cy5_improper_a4
     cy5_improper_df.to_csv('cy5_improper.csv',index=False)
+
+    ffbonded = []
+
+
 
     return ([cy3_charge_df,cy5_charge_df], [cy3_bond_df,cy5_bond_df],
         [cy3_improper_df, cy5_improper_df])
@@ -413,9 +416,127 @@ def write_ff_xml(amber_charges,amber_bonds,amber_impropers,cy3_top,cy3_xyz,
     angle1.set('angle',"2.1031217486531673")
     angle1.set('k',"836.8000000000001")
     
+    #second linker carbon - linker carbon - oxygen
+    angle2 = ET.SubElement(harmangle_root,'Angle')
+    angle2.set('type1','DNA-OS')
+    angle2.set('type2','c3')
+    angle2.set('type3','c3')
+    angle2.set('angle',"1.911135530933791")
+    angle2.set('k',"418.40000000000003")
+
+    #aliph hydrogen - linker carbon - oxygen
+    angle3 = ET.SubElement(harmangle_root,'Angle')
+    angle3.set('type1','DNA-OS')
+    angle3.set('type2','c3')
+    angle3.set('type3','hc')
+    angle3.set('angle',"1.911135530933791")
+    angle3.set('k',"418.40000000000003")
+    #Write to file
+
+    #Add propers
+    proper_root = ET.SubElement(new_root,'PeriodicTorsionForce')
+    proper_root.set('ordering','amber')
+
+    #linker carbon - oxygen - phosphate angle: DNA
+    proper1 = ET.SubElement(proper_root,'Proper')
+    proper1.set('type1','')
+    proper1.set('type2','c3')
+    proper1.set('type3','DNA-OS')
+    proper1.set('type4','')
+    proper1.set('periodicity1','3')
+    proper1.set('phase1','0.0')
+    proper1.set('k1',"1.6038666666666666")
+
+
+    #linker carbon - oxygen - phosphate angle: DNA
+    proper2 = ET.SubElement(proper_root,'Proper')
+    proper2.set('type1','')
+    proper2.set('type2','c3')
+    proper2.set('type3','DNA-OS')
+    proper2.set('type4','')
+    proper2.set('periodicity1','3')
+    proper2.set('phase1','0.0')
+    proper2.set('k1',"1.6038666666666666")
+
+    #aliphatic carbn -linker carbon - linker carbon - O5'
+    proper3 = ET.SubElement(proper_root,'Proper')
+    proper3.set('type1','hc')
+    proper3.set('type2','c3')
+    proper3.set('type3','c3')
+    proper3.set('type4','DNA-OS')
+    proper3.set('periodicity1','3')
+    proper3.set('phase1','0.0')
+    proper3.set('k1',"1.046")
+    
+    #O3' - phos - O5' - Carbon
+    proper4 = ET.SubElement(proper_root,'Proper')
+    proper4.set('type1','DNA-OS')
+    proper4.set('type2','DNA-P')
+    proper4.set('type3','DNA-OS')
+    proper4.set('type4','c3')
+    proper4.set('periodicity1','1')
+    proper4.set('phase1','0.5549288319349986')
+    proper4.set('k1',"0.7747973040000001")
+    proper4.set('periodicity2','2')
+    proper4.set('phase2','6.142853854002235')
+    proper4.set('k2','5.257325704')
+    proper4.set('periodicity3','3')
+    proper4.set('phase3','6.235144770452592')
+    proper4.set('k3','1.484725872')
+
+    #carbon - carbon - carbon - O5'
+    proper5 = ET.SubElement(proper_root,'Proper')
+    proper5.set('type1','c3')
+    proper5.set('type2','c3')
+    proper5.set('type3','c3')
+    proper5.set('type4','DNA-OS')
+    proper5.set('periodicity1','1')
+    proper5.set('phase1','3.3331692425337263')
+    proper5.set('k1',"4.92891936")
+    proper5.set('periodicity2','2')
+    proper5.set('phase2','5.159765562356967')
+    proper5.set('k2','0.385354768')
+    proper5.set('periodicity3','3')
+    proper5.set('phase3','6.0754099683820435')
+    proper5.set('k3','4.02848072')
+    
+    # phos - O5' - Carbon - Carbon
+    proper6 = ET.SubElement(proper_root,'Proper')
+    proper6.set('type1','DNA-OS')
+    proper6.set('type2','DNA-P')
+    proper6.set('type3','DNA-OS')
+    proper6.set('type4','c3')
+    proper6.set('periodicity1','1')
+    proper6.set('phase1','5.196980170799692')
+    proper6.set('k1',"4.518439672")
+    proper6.set('periodicity2','2')
+    proper6.set('phase2','3.501312866407458')
+    proper6.set('k2',"1.334767128")
+    proper6.set('periodicity3','3')
+    proper6.set('phase3','2.6463830545385836')
+    proper6.set('k3',"0.229433824")
+
+    #Add impropers
+    # phos - O5' - Carbon - Carbon
+    improper1 = ET.SubElement(proper_root,'Improper')
+    proper6.set('type1','DNA-OS')
+    proper6.set('type2','DNA-P')
+    proper6.set('type3','DNA-OS')
+    proper6.set('type4','c3')
+    proper6.set('periodicity1','1')
+    proper6.set('phase1','5.196980170799692')
+    proper6.set('k1',"4.518439672")
+    proper6.set('periodicity2','2')
+    proper6.set('phase2','3.501312866407458')
+    proper6.set('k2',"1.334767128")
+    proper6.set('periodicity3','3')
+    proper6.set('phase3','2.6463830545385836')
+    proper6.set('k3',"0.229433824")
+
+    
+
 
     #Write to file
- 
     basic_str = ET.tostring(new_root,encoding='unicode')
     #with open(output,'w') as f:   
     #    f.write(basic_str)
