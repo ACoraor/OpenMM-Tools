@@ -6,6 +6,7 @@ import numpy as np
 import argparse
 #Following openMM docs
 from openmm import *
+import os
 import openmm
 import sys
 import openmm.app as app
@@ -14,8 +15,16 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mdtraj as md
-import pysages
+from shutil import copy2
 from openmm.vec3 import Vec3
+import pickle
+
+#Import pysages things
+import pysages
+from pysages.grids import Grid
+from pysages.colvars import DihedralAngle
+from pysages.methods import SpectralABF,ABF
+
 
 def main():
     """Run an OpenMM simulation on the FRET constructs.
@@ -34,12 +43,29 @@ def main():
 
     #Set up simulation environment
     simulation = generate_simulation(pdb,ff)
-    print("Simulation generated. Running...")
+    print("Simulation generated.")
+
     #Run the system
-    results = run_simulation(simulation,args.timesteps)
+    print("Running simulation.")
+    results = run_simulation(simulation,args.timesteps,args.restart,args.enhanced)
 
     print("Simulation complete.")
-    print("results:",repr(results))
+
+    print("Plotting data.")
+    plot_data()
+
+def autogen_simulation():
+    """Automatically generate the entire simulation for pysages.
+    
+    Returns:
+	simulation: *openmm.app.simulation*
+	    Preset simulation with langevin integrator.
+    """
+    pdb,ff = load_system('cy3_isolated.pdb','DNA.bsc1.xml','spce_standard.xml',
+        'gaff-isolated.xml','gaff.xml')
+    simulation = generate_simulation(pdb,ff)
+    simulation.minimizeEnergy()
+    return simulation
 
 def load_system(pdb,amber,water,dyes,gaff):
     """Load and parse pdb, and amber/water parameter files.
@@ -101,7 +127,7 @@ def generate_simulation(pdb, ff):
     #Manually add bonds for C3N, C5N residues
     rs = [res for res in topology.residues()]
 
-    dye_names = ["C3N","C5N"]
+    dye_names = ["C3I","C5I"]
     dye_res = [r for r in rs if r.name in dye_names]
     print("dye_res:",dye_res)
 
@@ -160,6 +186,7 @@ def generate_simulation(pdb, ff):
                     float(pos[index_j].y),float(pos[index_j].z)]))
                 if np.linalg.norm(dist) < bond_dist:
                     topology.addBond(dye_ats[i],dye_ats[j])
+        '''
         #Manually add bonds to the prior and later residue atoms
         dye_phos = [at for at in dye_ats if at.name=="P"][0]
         dye_O3 = [at for at in dye_ats if at.name=="O3'"][0]
@@ -171,7 +198,7 @@ def generate_simulation(pdb, ff):
         next_res = rs[dye_r.index+1]
         next_res_phos = [at for at in next_res.atoms() if at.name=="P"][0]
         topology.addBond(dye_O3,next_res_phos)
-   
+        '''
 
     
     #res = [r for r in topology.residues()]
@@ -179,7 +206,7 @@ def generate_simulation(pdb, ff):
     #Add spce solvent molecules
     modeller = app.modeller.Modeller(topology,pos)
     
-    bounds = Vec3(5.0,5.0,32.0)*unit.nanometer #Change
+    bounds = Vec3(5.0,5.0,5.0)*unit.nanometer #Change
     #dna_ff = app.ForceField(args.amber) 
     modeller.loadHydrogenDefinitions(args.amber)
     #print("Adding hydrogens...")
@@ -198,7 +225,7 @@ def generate_simulation(pdb, ff):
         nonbondedMethod = app.PME, nonbondedCutoff = cutoff_distance)
    
     #NPT at 1bar
-    #system.addForce(MonteCarloAnisotropicBarostat((1,1,1)*unit.bar,T)) 
+    system.addForce(MonteCarloBarostat(1*unit.bar,T)) 
 
     #Create Simulation
 
@@ -215,7 +242,7 @@ def generate_simulation(pdb, ff):
 
     return simulation 
 
-def run_simulation(simulation,n_ts=10000):
+def run_simulation(simulation,n_ts=10000,is_restart=False,is_enhanced=False):
     """Run simulation given current setup.
 
     Parameters:
@@ -223,18 +250,32 @@ def run_simulation(simulation,n_ts=10000):
 	    Preset simulation with langevin integrator.
 	n_ts: *int*
 	    Number of timesteps to run. Default=10,000
+	is_restart: *bool*
+	    Is this simulation a restart
+	is_enhanced: *bool*
+	    Is this an enhanced sampling simulation
     Returns:
 	simulation: *openmm.app.simulation*
 	    Preset simulation with langevin integrator.
     """
-    #Minimize initial condition
-    print("Minimizing initial energy")
-    #simulation.minimizeEnergy(maxIterations=1000)
-    simulation.minimizeEnergy()
-    print("Energy minimized.")
 
-    with open("minstate.xml",'w') as f:
-        simulation.saveState(f)
+    if is_restart:
+        #Attempt to load restart 1, if failed, try 0
+        try:
+            simulation.loadState('restart_1.xml')
+            print("Successfully loaded restart_1.xml.")
+        except:
+            simulation.loadState('restart_0.xml')
+            print("Successfully loaded restart_0.xml.")
+    else:
+        #Minimize initial condition
+        print("Minimizing initial energy")
+        #simulation.minimizeEnergy(maxIterations=1000)
+        simulation.minimizeEnergy()
+        print("Energy minimized.")
+    
+        with open("minstate.xml",'w') as f:
+            simulation.saveState(f)
 
     traj_int = 10000
 
@@ -243,16 +284,52 @@ def run_simulation(simulation,n_ts=10000):
         step=True,potentialEnergy=True,temperature=True))
     
     relevant_inds = np.arange(4205) # Manually counted)
+    
+    #Set up reporters
+    if os.path.isfile('output.h5'):        
+        if is_restart:
+            print("Concatenating outputs...")
+            if not os.path.isfile('full_output.h5'):
+                copy2('output.h5','full_output.h5')
+            else:
+                out_data = md.load_hdf5('output.h5')
+                full_data = md.load_hdf5('full_output.h5')
+                total_xyz = np.concatenate((full_data._xyz,out_data._xyz),axis=0)
+                new_traj = md.Trajectory(total_xyz,full_data._topology)
+                new_traj.save_hdf5('full_output.h5',force_overwrite=True)
+        
+        #All existing save-worthy data is now saved at full_output.h5
+        os.remove('output.h5')
     simulation.reporters.append(md.reporters.HDF5Reporter('output.h5',5000,
         atomSubset=relevant_inds))
-    #simulation.reporters.append(app.PDBReporter('output.pdb',5000))
 
 
 
+
+    #Use try/finally to handle datafile closure
+    #try:
+    state_data_file = open('state_data.txt','a')
+    simulation.reporters.append(app.StateDataReporter(state_data_file,5000,
+            step=True,potentialEnergy=True,temperature=True))
+    
+    #Set up pysages cvs
+    cvs = [DihedralAngle([26,27,28,22]),DihedralAngle([27,28,22,11])]
+    grid = pysages.Grid(lower=(-np.pi, -np.pi), upper=(np.pi, np.pi), shape=(64, 64), periodic=True)
+
+    method = SpectralABF(cvs, grid) 
+    
+    
     #Run simulation
     print("Running!")
+    if is_enhanced:
+        run_result = pysages.run(method,autogen_simulation,n_ts)
+        print("Simulation completed! Dumping...")
+       
+        with open("run_res.pickle",'wb') as f:
+            pickle.dump(run_result,f) 
+        print("Pysages data dumped to 'run_res.pickle'. Analyzing...")
+        return simulation
 
-    
     #Old style running:
     for i in range(n_ts//traj_int):
         simulation.step(traj_int)
@@ -267,6 +344,48 @@ def run_simulation(simulation,n_ts=10000):
     
     print("Finished!")
     return simulation
+
+def plot_data(pickle_fn='run_res.pickle'):
+    """Plot the output of a crashed pysages run.
+
+    Parameters:
+	pickle_fn: *str*
+	    Path to pickled pysages result.
+    """
+    with open(pickle_fn,'rb') as f:
+        res = pickle.load(f)
+    print("Training on data...")
+    result = pysages.analyze(res,topology=(14,))
+    print("Network trained.")
+    A = result['free_energy']
+    A = A.max() - A#A.max() - A
+    grid = pysages.Grid(lower=(-np.pi, -np.pi), upper=(np.pi, np.pi), shape=(64, 64), periodic=True)
+    A = A.reshape(grid.shape)
+    if type(A) == np.array:
+        np.savetxt("free_eng.txt",A)
+    else:
+        print("Type of A:",type(A))
+    fig, ax = plt.subplots(dpi=120)
+    A_kT = A*1.688/4.184
+    im = ax.imshow(
+        A, interpolation="bicubic", origin="lower", 
+            extent=[-np.pi, np.pi, -np.pi, np.pi])
+    ax.contour(
+        A, levels=list(range(int(A.max()))), linewidths=0.75, colors="k", 
+            extent=[-np.pi, np.pi, -np.pi, np.pi])
+    ax.set_xlabel(r"$\phi_2$ (rad)")
+    ax.set_ylabel(r"$\phi_3$ (rad)")
+
+    cbar = plt.colorbar(im)
+    cbar.ax.set_ylabel(r"$A~[kT]$", rotation=270, labelpad=20)
+
+
+    #plt.contour(A,linewidths=0.75,colors='black',extent=[-np.pi,np.pi,-np.pi,np.pi])
+    #plt.set_xlabel("$\\phi_2$ (deg)")
+    #plt.set_xlabel("$\\phi_3$ (deg)")
+    plt.savefig("free_eng.pdf")
+    plt.savefig("free_eng.png",dpi=600)
+
 
 def foo():
     """Do foo.
@@ -286,9 +405,13 @@ if __name__ == '__main__':
 	help="Path to solvent-free DNA construct PDB.")
     parser.add_argument('-a','--amber',type=str,default = "DNA.bsc1.xml",
 	help="Path to Amber parameter file.")
+    parser.add_argument('-r','--restart',action='store_true',
+	help="Restart existing simulation.")
+    parser.add_argument('-e','--enhanced',action='store_true',
+	help="Enhanced sampling simulation.")
     parser.add_argument('-w','--water',type=str,default = "spce_standard.xml",
 	help="Path to Water/SPCE parameter file.")
-    parser.add_argument('-d','--dyes',type=str,default = "gaff-aec.xml",
+    parser.add_argument('-d','--dyes',type=str,default = "gaff-isolated.xml",
 	help="Path to dyes parameter file.")
     parser.add_argument('-g','--gaff',type=str,default = "gaff.xml",
 	help="Path to GAFF parameter file.")
