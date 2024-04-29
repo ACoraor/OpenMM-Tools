@@ -44,7 +44,7 @@ def load_ff_xml(gaff_path):
         curr_gaff: *str*
             Fully loaded current element tree, split by line
     """
-    with open("gaff_path",'r') as f:
+    with open(gaff_path,'r') as f:
         curr_gaff = f.readlines()
     return curr_gaff
 
@@ -85,17 +85,23 @@ def write_ff_xml(curr_gaff,cy3_labels,cy3_chg,cy5_labels,cy5_chg,output):
     #Combine hydrogens with bonded oxygen
     #For Cy3: Hydrogen 76 attached to Oxygen 63
     #For Cy3: Hydrogen 77 attached to oxygen 73
-    cy3_chg[63] = cy3_chg[63] + cy3_chg[76]
-    cy3_chg[73] = cy3_chg[73] + cy3_chg[77]
-    cy3_chg = cy3_chg[:-2]
-    cy3_labels = cy3_labels[:-2]
+    try:
+        cy3_chg[63] = cy3_chg[63] + cy3_chg[76]
+        cy3_chg[73] = cy3_chg[73] + cy3_chg[77]
+        cy3_chg = cy3_chg[:-2]
+        cy3_labels = cy3_labels[:-2]
+    except:
+        print("Not combining hydrogen charges.")
 
     #For Cy5: Hydrogen 80 attached to Oxygen 79
     #For Cy5: Hydrogen 81 attached to Oxygen 78
-    cy5_chg[79] = cy5_chg[79] + cy5_chg[80]
-    cy5_chg[78] = cy5_chg[78] + cy5_chg[81]
-    cy5_chg = cy5_chg[:-2]
-    cy5_labels = cy5_labels[:-2]
+    try:
+        cy5_chg[79] = cy5_chg[79] + cy5_chg[80]
+        cy5_chg[78] = cy5_chg[78] + cy5_chg[81]
+        cy5_chg = cy5_chg[:-2]
+        cy5_labels = cy5_labels[:-2]
+    except:
+        print("Not combining hydrogen charges.")
     
     #Force-parse the plaintext, replacing charges line by line
     atom_i = 0
@@ -118,7 +124,7 @@ def write_ff_xml(curr_gaff,cy3_labels,cy3_chg,cy5_labels,cy5_chg,output):
             new_line = line
 
         #If finished cy3, confirm this
-        if molecule_i == 0 and atom_i >= len(ch3_chg):
+        if molecule_i == 0 and atom_i >= len(cy3_chg):
             atom_i = 0
             molecule_i = 1         
             
@@ -148,7 +154,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d','--charges_don', type=str, 
         default='orca.cy3.chg', help='Path to Multiwfn RESP output for Cy3')
-    parser.add_argument('-d','--charges_acc', type=str, 
+    parser.add_argument('-a','--charges_acc', type=str, 
         default='orca.cy5.chg', help='Path to Multiwfn RESP output for Cy5')
     parser.add_argument('-g','--gaff',type=str,default = "gaff-isolated.xml",
 	help="Path to GAFF parameter file.")

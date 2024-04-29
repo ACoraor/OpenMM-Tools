@@ -11,7 +11,7 @@ def main():
     """Convert hdf5 trajectory into pdb trajectory."""
     a = md.load_hdf5(args.file)
     dot_index = args.file.find('.')
-    fn = args.file[dot_index]+".pdb"
+    fn = args.file[:dot_index]+".pdb"
     a.save_pdb(fn)
     print("Saved converted %s." % fn)
 

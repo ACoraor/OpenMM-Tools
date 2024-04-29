@@ -22,7 +22,7 @@ def main():
     dyes.
     """
     #Load new pdbs
-    cy3_top, cy3_xyz, cy5_top, cy5_xyz = load_label_pdbs()
+    cy3_top, cy3_xyz, cy5_top, cy5_xyz = load_label_pdbs(args.donor,args.acceptor)
 
     #Load AMBER-dyes forcefield
     amber_charges, amber_bonds, amber_impropers = load_amber_ffs(args.ff
@@ -571,9 +571,9 @@ if __name__ == '__main__':
     parser.add_argument('-f','--ff', type=str, 
         default='amber_subset', help='Path to AMBER-dyes forcefield file.')
     parser.add_argument('-d','--donor', type=str, 
-        default='C3N_L1R.pdb', help='Path to basic Cy3 pdb.')
+        default='cy3_dna.pdb', help='Path to basic Cy3 pdb.')
     parser.add_argument('-a','--acceptor', type=str, 
-        default='C5N_L1R.pdb', help='Path to basic Cy5 pdb.')
+        default='cy5_dna.pdb', help='Path to basic Cy5 pdb.')
     parser.add_argument('-g','--gaff',type=str,default = "gaff.xml",
 	help="Path to GAFF parameter file.")
     parser.add_argument('-o','--output',type=str,default = "gaff-aec.xml",
