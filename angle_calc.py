@@ -20,10 +20,20 @@ def main():
     """Calculate the angle of the fiber bending and write to pandas dframe."""
 
     # Load hdf5s
-    full_out = md.load_hdf5("full_output.h5")
-    out = md.load_hdf5("output.h5")
+    if os.path.isfile('output.h5'):
+        out = md.load_hdf5("output.h5")
+    else:
+        out = None
+    
+    if os.path.isfile('full_output.h5'):
+        full_out = md.load_hdf5("full_output.h5")
+        if out is not None:
+            xyz = np.concatenate((full_out.xyz, out.xyz), axis=0)
+        else:
+            xyz = full_out.xyz
+    else:
+        xyz = out.xyz
     # Calculate angles
-    xyz = np.concatenate((full_out.xyz, out.xyz), axis=0)
     atom_inds = (55, 896, 1580)  # Fiber angle at Cy5 for soft_041
     angs = calculate_angles(xyz, atom_inds)
     # Write to pandas dframe

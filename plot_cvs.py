@@ -11,6 +11,7 @@ from matplotlib import rc
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import pandas as pd
+import os
 
 def main():
     """Plot each cv versus time"""
@@ -23,9 +24,11 @@ def main():
         single_plot(df['timestep'],df[cv],cv)
 
     #Plot all pairs of cvs
-    for i, cv1 in enumerate(cvs[:-1]):
-        for j, cv2 in enumerate(cvs[i+1:]):
-            double_plot(df['timestep'],df[cv1],df[cv2],cv1,cv2)
+    #for i, cv1 in enumerate(cvs[:-1]):
+    i = 0 #Actually just opposed to fiber angle
+    cv1 = cvs[0]
+    for j, cv2 in enumerate(cvs[i+1:]):
+        double_plot(df['timestep'],df[cv1],df[cv2],cv1,cv2)
     
     print("Created all correlation plots. Exiting...")
 
@@ -61,10 +64,10 @@ def single_plot(timestep,data,name):
         os.mkdir('outputs')
     fn = os.path.join('outputs',name+'.png')
     plt.savefig(fn,dpi=600)
-    fn = os.path.join('outputs',name+'.pdf')
-    plt.savefig(fn)
-    fn = os.path.join('outputs',name+'.eps')
-    plt.savefig(fn)
+    #fn = os.path.join('outputs',name+'.pdf')
+    #plt.savefig(fn)
+    #fn = os.path.join('outputs',name+'.eps')
+    #plt.savefig(fn)
 
 def double_plot(timestep,data1,data2,name1,name2):
     '''Create a line plot for both datasets, and a comparison correlation plot
@@ -90,7 +93,7 @@ def double_plot(timestep,data1,data2,name1,name2):
     fig,ax = plt.subplots(layout='constrained')
 
     ax.plot(timestep,data1,color='blue',label=name1)
-    secax = ax.secondary_yaxis('right')
+    secax = ax.twinx()
     secax.plot(timestep,data2,color='red',label=name2)
     
     ax.set_xlabel("Simulation time (ns)")
@@ -102,10 +105,10 @@ def double_plot(timestep,data1,data2,name1,name2):
     plt.legend(loc='best',edgecolor='grey')
     fn = os.path.join('outputs',name+'.png')
     plt.savefig(fn,dpi=600)
-    fn = os.path.join('outputs',name+'.pdf')
-    plt.savefig(fn)
-    fn = os.path.join('outputs',name+'.eps')
-    plt.savefig(fn)
+    #fn = os.path.join('outputs',name+'.pdf')
+    #plt.savefig(fn)
+    #fn = os.path.join('outputs',name+'.eps')
+    #plt.savefig(fn)
 
     #Calculate cross-correlation
     white_data1 = (data1 - np.average(data1))/np.std(data1)
@@ -117,18 +120,27 @@ def double_plot(timestep,data1,data2,name1,name2):
     ax.plot(timestep,cross_corr,color='blue')
     ax.set_xlabel("Simulation time (ns)")
     ax.set_ylabel('Cross Correlation') #soft_041
-    ax.title("%s vs %s" % (name1,name2))
+    plt.title("%s vs %s" % (name1,name2))
     if not os.path.isdir('outputs'):
         os.mkdir('outputs')
     name = 'cross_corr_%s_%s' % (name1,name2)
     fn = os.path.join('outputs',name+'.png')
     plt.savefig(fn,dpi=600)
-    fn = os.path.join('outputs',name+'.pdf')
-    plt.savefig(fn)
-    fn = os.path.join('outputs',name+'.eps')
-    plt.savefig(fn)
+    #fn = os.path.join('outputs',name+'.pdf')
+    #plt.savefig(fn)
+    #fn = os.path.join('outputs',name+'.eps')
+    #plt.savefig(fn)
     print("%s vs %s <cross_correlation>:" % (name1,name2),np.average(cross_corr))
-
+    plt.clf()
+    fig,ax = plt.subplots(layout='constrained')
+    ax.scatter(white_data1,white_data2,marker='.',s=0.1)
+    ax.set_xlabel(name1)
+    ax.set_ylabel(name2)
+    plt.tight_layout()
+    name = 'comparison_%s_%s' % (name1,name2)
+    fn = os.path.join('outputs',name+'.png')
+    plt.savefig(fn,dpi=600)
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
