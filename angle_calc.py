@@ -34,7 +34,17 @@ def main():
     else:
         xyz = out.xyz
     # Calculate angles
-    atom_inds = (55, 896, 1580)  # Fiber angle at Cy5 for soft_041
+    if args.name == "standard":
+        #atom_inds = (2383, 918)  # Fiber angle at Cy5 for soft_041
+        atom_inds = (55, 896, 1580)  # Fiber angle at Cy5 for soft_041
+    elif args.name == "d20":
+        atom_inds = (817,1170,1481) #050_0, D20C0, far side nit to nit +- 10bp
+    elif args.name == "d15":
+        atom_inds = (572,889,1206) #038_0, D15C, far side nit4 to nit1 +- 10bp
+        #atom_inds = (55, 896, 1580)  # CVs from soft_050-052
+
+    # Calculate angles
+    #atom_inds = (55, 896, 1580)  # Fiber angle at Cy5 for soft_041
     angs = calculate_angles(xyz, atom_inds)
     # Write to pandas dframe
     save_to_dframe(angs)
@@ -82,6 +92,13 @@ if __name__ == "__main__":
         type=str,
         default=".",
         help="Path to simulation Processing directory.",
+    )
+    parser.add_argument(
+        "-n",
+        "--name",
+        type=str,
+        default="standard",
+        help=("Name of distance cv. Options include 'standard', 'd20','d15'"),
     )
     # parser.add_argument('-f','--file',type=str,help="Path to lammpstrj to analyze.")
     args = parser.parse_args()
