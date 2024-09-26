@@ -37,9 +37,17 @@ def main():
     if args.name == "cy5_N+1":
         atom_inds = (2383, 918)  # Fiber angle at Cy5 for soft_041
     elif args.name == "cy5_interc":
-        atom_inds = (2383,888) #Intercalation distance
+        #atom_inds = (2383,888) #Intercalation distance
+        atom_inds = [np.array([n for n in range(2381,2390)]),
+            np.array([n for n in range(884,896)])]
+    elif args.name == "cy3_interc":
+        #atom_inds = (2383,888) #Intercalation distance
+        atom_inds = [np.array([n for n in range(499,508)]),
+            np.array([n for n in range(2763,2775)])]
     elif args.name == "cy5_5-stack":
-        atom_inds = (2383,2348) #Stacking of 5' indole onto self
+        atom_inds = [np.array([n for n in range(2381,2390)]),
+            np.array([n for n in range(2348,2354)])]
+        #atom_inds = (2383,2348) #Stacking of 5' indole onto self
     elif args.name == "cy5_op-N-stack":
         atom_inds = (852,914) #Stacking of N-1 and N+1 opposing bases.
     angs = calculate_dist(xyz, atom_inds)
@@ -69,11 +77,17 @@ def calculate_dist(xyz, atom_inds):
             atom_inds: *array-like of int*, shape:3
                     Indices to calculate angles between
     """
-    new_xyz = xyz[:,atom_inds]
-    vec1 = new_xyz[:,0] - new_xyz[:,1]
+    try:
+        pos1 = np.average(xyz[:,atom_inds[0]],axis=1)
+        pos2 = np.average(xyz[:,atom_inds[1]],axis=1)
+        vec1 = pos2 - pos1
+    except:
+        new_xyz = xyz[:,atom_inds]
+        vec1 = new_xyz[:,0] - new_xyz[:,1]
+            
     #Account for periodic conditions in y, z
     vec1[:,1] = np.where(vec1[:,1] < 2.5, vec1[:,1], 5.0 - vec1[:,1])    
-    vec1[:,2] = np.where(vec1[:,2] < 2.5, vec1[:,2], 5.0 - vec1[:,2])    
+    vec1[:,2] = np.where(vec1[:,2] < 2.5, vec1[:,2], 5.0 - vec1[:,2])
 
     dists = np.linalg.norm(vec1,axis=1)
     return dists
@@ -94,7 +108,7 @@ if __name__ == "__main__":
         type=str,
         default="cy5_N+1",
         help=("Name of distance cv. Options include 'cy5_N+1', 'cy5_interc',"+
-            "'cy5_5-stack','cy5_op-N-stack'"),
+            "'cy5_5-stack','cy5_op-N-stack', 'cy3_interc'"),
     )
     # parser.add_argument('-f','--file',type=str,help="Path to lammpstrj to analyze.")
     args = parser.parse_args()

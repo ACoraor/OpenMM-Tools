@@ -167,9 +167,11 @@ def remove_dna_atoms(xyz, top, donor_ind, acceptor_ind):
         top: *mdtraj.topology*
             Topology of the input DNA pdb.
         donor_ind: *int*
-            Index of the donor with respect to its strand, 5' direction.
+            Index of the donor with respect to its strand, 5' direction. If 
+			negative, do not remove.
         acceptor_ind: *int*
-            Index of the acceptor with respect to its strand, 5' direction.
+            Index of the acceptor with respect to its strand, 5' direction. If
+			negative, do not remove.
     Returns:
         trunc_xyz: *np.array*, shape: (n_atoms,3)
             Positions of particles in the truncated DNA pdb.
@@ -182,14 +184,15 @@ def remove_dna_atoms(xyz, top, donor_ind, acceptor_ind):
 
     chains = [c for c in top.chains]
     ch1_res = [r for r in chains[0].residues]
-    donor_residue = ch1_res[donor_ind]
+    if donor_ind >= 0:
+        donor_residue = ch1_res[donor_ind]
+        for at in donor_residue.atoms:
+            rm_inds.append(at.index)
     ch2_res = [r for r in chains[1].residues]
-    acceptor_residue = ch2_res[acceptor_ind]
-
-    for at in donor_residue.atoms:
-        rm_inds.append(at.index)
-    for at in acceptor_residue.atoms:
-        rm_inds.append(at.index)
+    if acceptor_ind >= 0:
+        acceptor_residue = ch2_res[acceptor_ind]
+        for at in acceptor_residue.atoms:
+            rm_inds.append(at.index)
 
     keep_inds = [i for i in range(len(all_atoms)) if i not in set(rm_inds)]
     trunc_top = top.subset(keep_inds)
@@ -412,9 +415,9 @@ if __name__ == '__main__':
     parser.add_argument('-o','--output', type=str, default='labelled_dna.pdb',
         help='Path to output labelled PDB.')
     parser.add_argument('-d','--donor', type=int, 
-        default=15, help='Index of Cy3 in donor (Ashort) strand. Default=15')
+        default=15, help='Index of Cy3 in donor (Ashort) strand. Pass -1 for no donor. Default=15')
     parser.add_argument('-a','--acceptor', type=int, 
-        default=23, help='Index of Cy5 in Acceptor (B) strand. Default=23 (B10)')
+        default=23, help='Index of Cy5 in Acceptor (B) strand. Pass -1 for no acceptor. Default=23 (B10)')
     args = parser.parse_args()
 
     main()

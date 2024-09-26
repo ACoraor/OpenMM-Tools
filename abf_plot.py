@@ -3,7 +3,7 @@
 #Written 4/4/24
 
 import numpy as np
-import mdtraj as md
+import os
 import argparse
 import matplotlib
 matplotlib.use("Agg")
@@ -21,6 +21,7 @@ def main():
         make_plot(fes,args.max)
     elif fes.shape[1] == 2:
         make_1d_plot(fes,args.max)
+        make_1d_hist(fes)
     else:
         raise Exception("Number of columns in %s can't be processed." % args.file)
     fn = 'abf_fes.png'
@@ -95,18 +96,86 @@ def make_1d_plot(fes,max_eng=20):
     plt.clf()
     fig,ax = plt.subplots(layout='constrained')
     energies = fes[:,1]
-    energies -= np.min(energies)
-    energies /= 2.479 # Convert kJ/mol to kT
-    XX = fes[:,0]*180.0/np.pi
+    energies = energies / 2.479 # Convert kJ/mol to kT
+    energies = energies - np.min(energies)
+    XX = fes[:,0]*(180.0/np.pi)
     ZZ = energies
 
     plt.plot(XX,ZZ)
 
-    ax.set_xlabel("Backbone Angle (deg)")
+    ax.set_xlabel(r"Bending angle $\theta$ (deg)")
     ax.set_ylabel(r"Free energy (kT)") #soft_041
+    ax.set_ylim(bottom=0.0,top=max_eng)
     plt.savefig('abf_fes.png',dpi=600)
     plt.savefig('abf_fes.pdf')
     plt.savefig('abf_fes.eps')
+
+    #Now create probability plot
+    plt.clf()
+    fig,ax = plt.subplots(layout='constrained')
+    #energies = fes[:,1]
+    #energies -= np.min(energies)
+    #energies /= 2.479 # Convert kJ/mol to kT
+    XX = fes[:,0]*(180.0/np.pi)
+    #Calculate probability distribution, reweighted to sum to 1
+    prob = np.exp(-energies)
+    prob = prob / np.sum(prob)
+    #print("prob:",prob)
+
+    ZZ = prob
+
+    plt.plot(XX,ZZ)
+    ax.set_xlabel(r"Bending angle $\theta$ (deg)")
+    ax.set_ylabel(r"Marginal probability") #soft_041
+    max_prob = np.max(prob)
+    ax.set_ylim(bottom=0.0,top=max_prob*1.1)
+    plt.savefig('abf_prob.png',dpi=600)
+    plt.savefig('abf_prob.pdf')
+    plt.savefig('abf_prob.eps')
+    
+def make_1d_hist(fes):
+    '''Create a 1d histogram plot to check convergence
+
+    Parameters:
+        fes: *np.array*, shape: (len(x)*len(y),3)
+            First two columns are x and y, last column is free energy
+                in kJ/mol
+    '''
+    #Load histograms: Most recent, less recent.
+    
+    curr_hist = np.loadtxt('histogram.txt')
+
+    dirs = [fn for fn in os.path.listdir('.') if "output_" in fn]
+    dirs.sort(key = lambda x: int(x[7:]))
+    #attempt to load hists
+    hists = []
+    for d in dirs:
+        fn = os.path.join(d,'histogram.txt')
+        hists.append(np.loadtxt(fn))
+    
+    burn_in_hist = hists[len(hists)//3]
+    second_last_hist = hists[2*len(hists)//3]
+    
+    #Check if histogram from 1/3rd --> 2/3rds is the same as 2/3rds --> on.
+    curr_hist = curr_hist - second_last_hist
+    second_last_hist = second_last_hist - burn_in_hist
+    
+
+
+    plt.clf()
+    fig,ax = plt.subplots(layout='constrained')
+    XX = fes[:,0]*(180.0/np.pi)
+    x_grid = np.linspace(XX[0],XX[-1],len(curr_hist))
+
+    plt.plot(x_grid,second_last_hist,color='#E69F00',label = "Middle third")
+    plt.plot(x_grid,curr_hist,color='#56B4E9',label = "Last third")
+
+    ax.set_xlabel(r"Bending angle $\theta$ (deg)")
+    ax.set_ylabel(r"Histogram probability") #soft_041
+    #ax.set_ylim(bottom=0.0,top=max_eng)
+    plt.savefig('conv_hist.png',dpi=600)
+    plt.savefig('conv_hist.pdf')
+    plt.savefig('conv_hist.eps')
 
 
 

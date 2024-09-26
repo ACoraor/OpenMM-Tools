@@ -37,6 +37,10 @@ def main():
     if args.name == "standard":
         #atom_inds = (2383, 918)  # Fiber angle at Cy5 for soft_041
         atom_inds = (55, 896, 1580)  # Fiber angle at Cy5 for soft_041
+    elif args.name == "cy5_interc":
+        atom_inds = (2383,888,918) # Directly from script
+    elif args.name == "cy3_interc":
+        atom_inds = (501,2767,2802) # Directly from script
     elif args.name == "d20":
         atom_inds = (817,1170,1481) #050_0, D20C0, far side nit to nit +- 10bp
     elif args.name == "d15":
@@ -47,11 +51,11 @@ def main():
     #atom_inds = (55, 896, 1580)  # Fiber angle at Cy5 for soft_041
     angs = calculate_angles(xyz, atom_inds)
     # Write to pandas dframe
-    save_to_dframe(angs)
+    save_to_dframe(angs,"angle_"+args.name)
 
     print("Saved angles in %s. Exiting..." % args.dir)
 
-def save_to_dframe(angs):
+def save_to_dframe(angs,name):
     """Save the fiber angles to log.dframe
 
     *Parameters*
@@ -59,7 +63,7 @@ def save_to_dframe(angs):
                     Angle, in radians, of the fiber bending.
     """
     df = pd.read_csv("log.dframe")
-    df["fiber_angle"] = angs
+    df[name] = angs
     df.to_csv("log.dframe", index=False, na_rep="NULL")
 
 
@@ -98,7 +102,7 @@ if __name__ == "__main__":
         "--name",
         type=str,
         default="standard",
-        help=("Name of distance cv. Options include 'standard', 'd20','d15'"),
+        help=("Name of distance cv. Options include 'standard', 'd20','d15', 'cy5_interc','cy3_interc'"),
     )
     # parser.add_argument('-f','--file',type=str,help="Path to lammpstrj to analyze.")
     args = parser.parse_args()

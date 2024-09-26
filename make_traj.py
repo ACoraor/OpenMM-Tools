@@ -14,8 +14,10 @@ def main():
         """Concatenate all xmls into one trajectory."""
 
         #Generate filenames
+
         fs = [ele for ele in os.listdir(args.dir) if ('state_' in ele
             and '.xml' in ele and ele[0] != ".")]
+    
 
         n_states = len(fs)
         print(n_states)

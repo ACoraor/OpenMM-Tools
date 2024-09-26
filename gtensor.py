@@ -22,6 +22,7 @@ def main():
     # Load hdf5s
     if os.path.isfile('output.h5'):
         out = md.load_hdf5("output.h5")
+        top = out.topology
     else:
         out = None
     
@@ -39,18 +40,27 @@ def main():
     #Get indices of all atoms in our DNA
     dnas_resnames = set(["DA","DC","DT","DG","C5N","C3N"])
     atom_inds = []
-    for at in top.atoms:
+    #HACK: Only use chain1
+    chains = [ch for ch in top.chains]
+    
+    for at in chains[0].atoms:
         if at.residue.name in dnas_resnames:
             atom_inds.append(at.index)
     atom_inds = np.array(atom_inds)
 
     # Calculate angles
-    gtensor_comps = calculate_dist(xyz, atom_inds)
-    names = ['gyration_lx2','gyration_ly2','gyration_lz2',
-            'gyration_b_reduced','gyration_c_reduced','gyration_k2_reduced'
+    print("Calculating gtensor components.")
+    gtensor_comps = calculate_gtensor(xyz, atom_inds)
+    gtensor_comps = np.transpose(gtensor_comps)
+    print("gtensor_comps shape:",gtensor_comps.shape)
+    print("Calculation done. Saving...")
+    names = ['gyration_lz2','gyration_ly2','gyration_lx2',
+            'gyration_b_reduced','gyration_c_reduced','gyration_k2_reduced',
             'gyration_rg2']
     # Write to pandas dframe
     for data,name in zip(gtensor_comps,names):
+        print("data shape for %s:" % name,data.shape)
+        #print(data)
         save_to_dframe(data,name)
 
     #save_to_dframe(gtensor_comps[0],'gtensor_lx2')
@@ -86,10 +96,13 @@ def calculate_gtensor(xyz, atom_inds):
     """
     #STUB
     gtensor_comps = np.zeros(3)
+    xyz = xyz[:,atom_inds]
     COG = np.average(xyz, axis=1)
     # print("COG.shape:",COG.shape)
     centered_pos = np.zeros(xyz.shape)
-    n_atoms = len(xyz)
+    n_atoms = xyz.shape[1]
+
+    boxdim = (20.0,5.0,5.0)
 
     # print("Centering.")
     for i in range(xyz.shape[0]):
@@ -106,14 +119,16 @@ def calculate_gtensor(xyz, atom_inds):
             )
         gyration_tensor[ts_i] = gyration_tensor[ts_i] / n_atoms
 
-    # print("Calculating eigendecomposition.")
+    print("Calculating eigendecomposition.")
     # Diagonalize gyration tensor
-    # print("Gyration tensor shape:",gyration_tensor.shape)
+    #gyration_tensor = np.sum(gyration_tensor,axis=0)
+    print("Gyration tensor shape:",gyration_tensor.shape)
     gyr_eigenvalues, gyr_eigenvectors = np.linalg.eig(gyration_tensor)
     # print("gyr_eigenvalues.shape:",gyr_eigenvalues.shape)
     # print("gyr_eigenvectors.shape:",gyr_eigenvectors.shape)
     # Sort eigenvalues
     principal_moments = np.sort(gyr_eigenvalues, axis=1)
+    print("Principal moments shape:",principal_moments.shape)
 
     rg2 = np.sum(principal_moments, axis=1)
     # Calculate b, c, k2
