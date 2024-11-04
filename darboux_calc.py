@@ -40,7 +40,10 @@ def main():
         top = out.topology
 
     #Calculate the orientation of each dye residue in the Darboux frame
-    t_vects, names = calc_dye_darboux(xyz,top)
+    t_vects, planar_t_vects, names = calc_dye_darboux(xyz,top)
+    
+    #Combine t_vects and planar t_vects before saving
+    t_vects = t_vects + planar_t_vects
 
     # Write to pandas dframe
     save_to_dframe(t_vects,names)
@@ -61,7 +64,7 @@ def save_to_dframe(t_vects,names):
         df[name+"_t1"] = t_vects[i][:,0]
         df[name+"_t2"] = t_vects[i][:,1]
         df[name+"_t3"] = t_vects[i][:,2]
-    df.to_csv("log.dframe", index=False, na_rep="NULL")
+    df.to_csv("log.dframe", index=False, na_rep="NULL",float_format='%.8f')
 
 
 def calc_dye_darboux(xyz, top):
@@ -76,6 +79,8 @@ def calc_dye_darboux(xyz, top):
     *Returns*
             t_vects: *list of np.array*, shape: [n_dyes,(n_ts,3)]
                     Components of the dye's orientation in the Darboux frame.
+            planar_t_vects: *list of np.array*, shape: [3*n_dyes,(n_ts,3)]
+                    Components of the planar vectors in the Darboux frame.
             names: *list of str*
                     Names of the dyes.
     """
@@ -123,7 +128,7 @@ def calc_dye_darboux(xyz, top):
     t1_vects,t3_vects = calc_t1_t3_vects(xyz,res_5p,res_3p,res_5p_opp,res_3p_opp)
 
     print("T1 and t3 vects calculated.")
-    print("Calculating T2 vect:")
+    print("Calculating T2 vect...")
 
     #t2 = t3 cross t1
     if type(t1_vects) != list:
@@ -143,8 +148,42 @@ def calc_dye_darboux(xyz, top):
         #Renormalize
         tv = renorm_2d(tv)
         t_vects.append(np.copy(tv)) 
+
+    #Calculate the DNA ribbon planar vectors
+    p3_planar, p5_planar, p35_planar = calc_planar_vects(xyz,res_5p,res_3p,
+            res_5p_opp,res_3p_opp)
+    #Add these names:
+    new_names = []
+    for i, name in enumerate(dye_names):
+        new_names += [name + ele for ele in ["_p3_planar","_p5_planar","_p35_planar"]]
+    dye_names = dye_names + new_names
+    
+    #Change basis from xyz to t1,t2,t3 and renormalize
+    planar_vects = [p3_planar,p5_planar,p35_planar]
+    planar_t_vects = []
+    
+    #Planar_vects should have shape: [3,n_dyes,(n_ts,3)]
+    #We want to recast to [n_dyes,(n_ts,3)]
+    flat_planar_vects = []
+    n_dyes = len(p3_planar)
+    for i in range(n_dyes):
+        flat_planar_vects += [p3_planar[i],p5_planar[i],p35_planar[i]]
+
+
+    #Calculate components in the Darboux frame
+    for i, pv in enumerate(flat_planar_vects):
+        tv = np.zeros((len(pv),3), dtype='float')
+        #Use the t vectors from the corresponding dye with index i//3
+        tv[:,0] = np.sum(t1_vects[i//3]*pv, axis=-1)
+        tv[:,1] = np.sum(t2_vects[i//3]*pv, axis=-1)
+        tv[:,2] = np.sum(t3_vects[i//3]*pv, axis=-1)
+        #Renormalize
+        tv = renorm_2d(tv)
+        planar_t_vects.append(np.copy(tv)) 
         
-    return t_vects, dye_names
+
+
+    return t_vects, planar_t_vects, dye_names
     
 def calc_dye_vects(xyz, res):
     """Calculate the real-space orientation vector of the dye res, 5' to 3'
@@ -186,7 +225,7 @@ def calc_dye_vects(xyz, res):
 
     dye_vects = indole_3p_com - indole_5p_com
     #Normalize
-    print("Dye_vects shape:",dye_vects.shape)
+    #print("Dye_vects shape:",dye_vects.shape)
     dye_vects = np.transpose(np.transpose(dye_vects) / 
             np.linalg.norm(dye_vects,axis=1) )
 
@@ -227,12 +266,6 @@ def calc_t1_t3_vects(xyz, res_5p,res_3p,res_5p_opp,res_3p_opp):
         return t1_vects, t3_vects
 
 
-
-    #Determine the indices to calculate COMs for each of the corresponding
-    #Residues
-    indole_5p_inds = []
-    indole_3p_inds = []
-
     #Determine name of all atoms in dye
     vect_dict = {} #Key: Resname. Value: "startpoint atom name set", "
     #                  endpoint atom name set" 
@@ -270,7 +303,8 @@ def calc_t1_t3_vects(xyz, res_5p,res_3p,res_5p_opp,res_3p_opp):
 
     #Calculate explicit orientation vectors
     dye_vects = all_end_coms - all_start_coms
-    print("Dye_vects shape, should be (4,n_ts,3):",dye_vects.shape)
+    #print("Dye_vects shape, should be (4,n_ts,3):",dye_vects.shape)
+
 
     #Split into individual variables
     vect_5p = dye_vects[0]
@@ -281,7 +315,7 @@ def calc_t1_t3_vects(xyz, res_5p,res_3p,res_5p_opp,res_3p_opp):
     renorm_2d = lambda x: x / (np.linalg.norm(x,axis=1)[:,np.newaxis])
     renorm_3d = lambda x: x / (np.linalg.norm(x,axis=2)[:,:,np.newaxis])
 
-    print("vect_5p shape:",vect_5p.shape)
+    #print("vect_5p shape:",vect_5p.shape)
 
     #Normalize each vector
     vect_5p = renorm_2d(vect_5p)
@@ -292,30 +326,112 @@ def calc_t1_t3_vects(xyz, res_5p,res_3p,res_5p_opp,res_3p_opp):
     #These vectors should be roughly negative of each other. We can
     #Take an appropriate average by subtracting them and renormalizing!
 
-    print("Finished renormalizing. Subtracting...")
+    #print("Finished renormalizing. Subtracting...")
     t1_5p = vect_5p - vect_5p_opp
     t1_5p = renorm_2d(t1_5p)
     t1_3p = vect_3p - vect_3p_opp
     t1_3p = renorm_2d(t1_3p)
 
     t1_vects = np.average((t1_5p,t1_3p),axis=0)
+    t1_vects = renorm_2d(t1_vects)
+    
+    #calculate t3 vectors as the average same- and opposite strand vectors
+    #Pointing between sugars.
+    t3_approx = all_start_coms[0] - all_start_coms[1]
+    t3_opp_approx = all_start_coms[2] - all_start_coms[3]
+    t3_vects = renorm_2d(t3_approx + t3_opp_approx)
 
-    print("Performing cross product...")
+    #print("Performing cross product...")
     #We do the same thing with a crossproduct to calculate t3.
-    t3_5p = np.cross(vect_5p,vect_5p_opp)
-    t3_3p = np.cross(vect_3p,vect_3p_opp)
+    #t3_5p = np.cross(vect_5p,vect_5p_opp)
+    #t3_3p = np.cross(vect_3p,vect_3p_opp)
     #These should point in the same direction. Renormalize, average, then
     #renormalize.
-    t3_5p = renorm_2d(t3_5p)
-    t3_3p = renorm_2d(t3_3p)
+    #t3_5p = renorm_2d(t3_5p)
+    #t3_3p = renorm_2d(t3_3p)
     
-    print("Removing projection...")
-    t3_vects = renorm_2d(t3_5p + t3_3p)
+    #print("Removing projection...")
+    #t3_vects = renorm_2d(t3_5p + t3_3p)
     #Remove projection of t3 onto t1
     t3_vects = t3_vects - t1_vects * np.sum(t3_vects * t1_vects,axis=-1)[:,np.newaxis]
     t3_vects = renorm_2d(t3_vects)
-    print("returning.")
+    #print("returning.")
     return t1_vects, t3_vects
+
+
+def calc_planar_vects(xyz, res_5p,res_3p,res_5p_opp,res_3p_opp):
+    """Calculate the real-space vectors p3, p5, and p35. These point from the
+    4-residue COM to the 3' phosphate, 5' phosphate, and 3' --> 5' phosphates
+    respectively.
+
+    *Parameters*
+            xyz:  *np.array of floats*, shape: (n_ts,n_atoms,3)
+                    Atomic positions.
+            res_5p: *mdtraj.residue or list of residues*
+                    Residue of DNA in the same-strand 5'-ward of the dye.
+            res_3p: *mdtraj.residue or list of residues*
+                    Residue of DNA in the same-strand 3'-ward of the dye.
+            res_5p_opp: *mdtraj.residue or list of residues*
+                    Residue of DNA in the opposite-strand complementary
+                    to res_5p.
+            res_3p_opp: *mdtraj.residue or list of residues*
+                    Residue of DNA in the opposite-strand complementary
+                    to res_3p.
+    *Returns*
+            p3_vects: *list of np.array*, shape: [n_dyes,(n_ts,3)]
+                    Normalized components of the t1 orientation in the xyz frame.
+            p5_vects: *list of np.array*, shape: [n_dyes,(n_ts,3)]
+                    Normalized components of the t3 orientation in the xyz frame.
+            p35_vects: *list of np.array*, shape: [n_dyes,(n_ts,3)]
+                    Normalized components of the t3 orientation in the xyz frame.
+    """
+    #If called on a strand with multiple dyes, call recursively
+    if type(res_5p) == list:
+        p3_vects = []
+        p5_vects = []
+        p35_vects = []
+        for i in range(len(res_5p)):
+            p3v, p5v, p35v = calc_planar_vects(xyz,res_5p[i],res_3p[i],res_5p_opp[i],
+                    res_3p_opp[i])
+            p3_vects.append(np.copy(p3v))
+            p5_vects.append(np.copy(p5v))
+            p35_vects.append(np.copy(p35v))
+        return p3_vects, p5_vects, p35_vects
+
+    #Replace residues with atom indices
+    res_labels = ["res_5p","res_3p","res_5p_opp","res_3p_opp"]
+    all_res = [res_5p,res_3p,res_5p_opp,res_3p_opp]
+    all_inds = [] #Shape: 4, n_atoms
+    all_phos_inds = []
+
+    for i, res in enumerate(all_res):
+        all_inds.append(np.array([at.index for at in res.atoms]))
+        all_phos_inds.append(np.array([at.index for at in res.atoms if at.name == "P"]))
+
+    #Calculate COMs, first within all 4 residues, then across all 4
+    res_coms = np.array([np.average(xyz[:,inds],axis=1) for inds in all_inds])
+    phos_pos = np.array([xyz[:,ind] for ind in all_phos_inds])
+    com = np.average(res_coms,axis=0)
+    #print("Planar COM:",com)
+    
+    #print("phos_pos[1] shape:",phos_pos[1].shape)
+    #Calculate vectors and flatten appropriately
+    p3_vects = phos_pos[1][:,0] - com
+    p5_vects = phos_pos[0][:,0] - com
+    p35_vects = phos_pos[0][:,0] - phos_pos[1][:,0]
+
+
+    renorm_2d = lambda x: x / (np.linalg.norm(x,axis=1)[:,np.newaxis])
+    renorm_3d = lambda x: x / (np.linalg.norm(x,axis=2)[:,:,np.newaxis])
+
+    #print("p3_vects shape:",p3_vects.shape)
+
+    #Normalize each vector
+    p3_vects = renorm_2d(p3_vects)
+    p5_vects = renorm_2d(p5_vects)
+    p35_vects = renorm_2d(p35_vects)
+
+    return p3_vects, p5_vects, p35_vects
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -113,9 +113,9 @@ def darboux_plot(df,names):
         ax3.pcolormesh(xcent,ycent,H,cmap='viridis',shading='auto',
             transform=ccrs.PlateCarree())
         ax3.gridlines(linestyle=':')
-        fig.savefig('%s_darboux.png'% dye,dpi=600)
-        fig.savefig('%s_darboux.svg'% dye)
-        fig.savefig('%s_darboux.pdf'% dye)
+        #fig.savefig('%s_darboux.png'% dye,dpi=600)
+        #fig.savefig('%s_darboux.svg'% dye)
+        #fig.savefig('%s_darboux.pdf'% dye)
         #Pasted from joined_pca:
 
 def calc_darboux_kde(t1,t2,t3,gridpoints=512,name='darboux_scat'):
@@ -143,6 +143,14 @@ def calc_darboux_kde(t1,t2,t3,gridpoints=512,name='darboux_scat'):
                 Center of 'histogram' bins for kde density evaluations, 
                 in latitudinal degrees.
     '''
+
+    #If plotting planar_35, switch to planar_53
+    if name[6:9] == "p35":
+        name = name[:6] + "p53" + name[9:]
+        t1 = -t1
+        t2 = -t2
+        t3 = -t3
+    
     #Perform the KDE in Darboux space, then map the pdf to PlateCaree space,
         #Then project onto EckertIV space
     #phi = zfit.Space("Phi", lower = -90, upper = 90)
@@ -230,6 +238,8 @@ def calc_darboux_kde(t1,t2,t3,gridpoints=512,name='darboux_scat'):
     ax3.scatter(thetas_sorted,phis_sorted, marker=".", s=1, c=cmap(colors_sorted),
         transform=ccrs.PlateCarree())
     ax3.gridlines(linestyle=':')
+
+
     #ax3.set_xlabel("PC 1")
     #ax3.set_ylabel("PC 2")
     
@@ -238,6 +248,18 @@ def calc_darboux_kde(t1,t2,t3,gridpoints=512,name='darboux_scat'):
     ax3.set_extent([-180,180,-90,90])
     #ax3.set_ylim(-90,90)
     #ax3.set_xlim(-180,180)
+
+    #If pandas dataframe already created, scatter the modes:
+    if os.path.isfile("aves.csv"):
+        aves = pd.read_csv('aves.csv')
+        #Get p3, p5, and p35 axes of this name
+        
+
+        #Add these axes to the scatter
+
+        #Calculate plane in the great circle using the formulas at
+        # <https://tinyurl.com/ycxsmw95>
+
     
     #Plot other kdes
     phi_sp = zfit.Space("Phi", lower = -90, upper = 90)
@@ -275,6 +297,22 @@ def calc_darboux_kde(t1,t2,t3,gridpoints=512,name='darboux_scat'):
     ax4.set_yticklabels([ele for ele in reversed(phi_labels)])
     #ax4.set_xlim(0,np.max(kde_vert)*1.1)
 
+    #Save modes to dataframe
+    if os.path.isfile("aves.csv"):
+        df = pd.read_csv('aves.csv')
+        cols = df.columns
+    else:
+        df = pd.DataFrame()
+        cols = ['name','mode_theta','ave_theta','mode_phi','ave_phi']
+        df.columns = cols
+    mode = np.argmax(colors_sorted).flatten()
+    mode_theta = thetas_sorted[mode]
+    mode_phi = phis_sorted[mode]
+    ave_theta = np.average(thetas_sorted)
+    ave_phi = np.average(phis_sorted)
+    df.loc[-1] = [name,mode_theta,ave_theta,mode_phi,ave_phi]
+    df.to_csv('aves.csv',index=False,na_rep='NULL')
+    
     
     base = name + "_scatt"
     plt.savefig(base + ".png", dpi=600)
