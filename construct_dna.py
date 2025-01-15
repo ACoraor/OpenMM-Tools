@@ -32,7 +32,7 @@ def main():
 
     #Add dyes in the correct locations
     xyz, top = add_dyes(xyz, top, d_xyz, d_top, a_xyz, a_top, args.donor,
-        args.acceptor,args.swap_strands)
+        args.acceptor,args.swap_strand)
 
     #Save new pdb
     pdb = md.formats.PDBTrajectoryFile(args.output,mode='w')
@@ -41,7 +41,7 @@ def main():
     print("Labelled pdb written. Exiting...")
 
 def add_dyes(xyz, top, donor_xyz, donor_top, acceptor_xyz, acceptor_top,
-         donor_ind, acceptor_ind,swap_strands):
+         donor_ind, acceptor_ind,swap_strand):
     """Remove the appropriate atoms of the DNA residue to replace. Reorient
     the donor and acceptor to the appropriate residue and add to the pdb.
 
@@ -62,7 +62,7 @@ def add_dyes(xyz, top, donor_xyz, donor_top, acceptor_xyz, acceptor_top,
             Index of the donor with respect to its strand, 5' direction.
         acceptor_ind: *int*
             Index of the acceptor with respect to its strand, 5' direction.
-        swap_strands: *bool*
+        swap_strand: *bool*
             If true, 'donor' is Cy5 and 'acceptor' is Cy3.
     Returns:
         labelled_xyz: *np.array*, shape: (n_atoms,3)
@@ -71,7 +71,7 @@ def add_dyes(xyz, top, donor_xyz, donor_top, acceptor_xyz, acceptor_top,
             Topology of the labelled DNA pdb.
     """
     #Swap out Cy3 and Cy5, if called for.
-    if swap_strands:
+    if swap_strand:
         tmp_xyz = np.copy(donor_xyz)
         tmp_top = donor_top
         donor_xyz = acceptor_xyz
@@ -433,9 +433,9 @@ if __name__ == '__main__':
     parser.add_argument('-o','--output', type=str, default='labelled_dna.pdb',
         help='Path to output labelled PDB.')
     parser.add_argument('-d','--donor', type=int, 
-        default=-1, help='Index of Cy3 in donor (Ashort) strand. Pass -1 for no donor. Default=15')
+        default=15, help='Index of Cy3 in donor (Ashort) strand. Pass -1 for no donor. Default=15')
     parser.add_argument('-a','--acceptor', type=int, 
-        default=-1, help='Index of Cy5 in Acceptor (B) strand. Pass -1 for no acceptor. Default=23 (B10)')
+        default=23, help='Index of Cy5 in Acceptor (B) strand. Pass -1 for no acceptor. Default=23 (B10)')
     parser.add_argument('-s','--swap_strand', action='store_true', 
             help="If true, 'donor' is Cy5 and 'acceptor' is Cy3.")
     args = parser.parse_args()
