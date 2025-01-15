@@ -80,29 +80,31 @@ def make_abasic(xyz, top, donor_ind, acceptor_ind):
         for res_i, res in enumerate(chain.residues):
             #If you hit the dye residue, first add the dye
             if chain_i == 0 and res_i == donor_ind:
-                donor_res = [r for r in affine_donor_top.residues][0]
+                donor_res = res#[r for r in affine_donor_top.residues][0]
                 labelled_top.add_residue(name='DAP',chain=curr_ch)
                 curr_res = labelled_top.residue(-1)
                 for d_at in donor_res.atoms:
                     labelled_top.add_atom(name=d_at.name,
                         element=d_at.element, residue=curr_res)
-                labelled_xyz += [affine_donor_xyz]
+                    labelled_xyz += [np.reshape(trunc_xyz[d_at.index],(1,-1))]
             elif chain_i == 1 and res_i == acceptor_ind:
-                acc_res = [r for r in affine_acceptor_top.residues][0]
+                acc_res = res#[r for r in affine_acceptor_top.residues][0]
                 labelled_top.add_residue(name='DAP',chain=curr_ch)
                 curr_res = labelled_top.residue(-1)
                 for acc_at in acc_res.atoms:
                     labelled_top.add_atom(name=acc_at.name,
                         element=acc_at.element, residue=curr_res)
-                labelled_xyz += [affine_acceptor_xyz]
-            
-            #Now, add the normal residue and atoms
-            labelled_top.add_residue(name=res.name,chain=curr_ch)
-            curr_res = labelled_top.residue(-1)
-            for at in res.atoms:
-                labelled_top.add_atom(name=at.name,element=at.element,
-                    residue=curr_res)
-                labelled_xyz += [np.reshape(trunc_xyz[at.index],(1,-1))]
+                    labelled_xyz += [np.reshape(trunc_xyz[acc_at.index],(1,-1))]
+            else:
+                #Now, add the normal residue and atoms
+                labelled_top.add_residue(name=res.name,chain=curr_ch)
+                curr_res = labelled_top.residue(-1)
+                for at in res.atoms:
+                    labelled_top.add_atom(name=at.name,element=at.element,
+                        residue=curr_res)
+                    labelled_xyz += [np.reshape(trunc_xyz[at.index],(1,-1))]
+
+    #print("Labelled_xyz_shapes:",[ele.shape for ele in labelled_xyz])
     labelled_xyz = np.concatenate(labelled_xyz)
     return labelled_xyz, labelled_top
 
