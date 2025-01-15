@@ -22,6 +22,9 @@ def main():
     #Load pandas dataframe
     df = pd.read_csv('log.dframe')
 
+    if not os.path.isdir('outputs'):
+        os.mkdir('outputs')
+
     #Find columns and plot
     cols = df.columns
     darb_cols = [col for col in cols if col[-3:] in set(["_t1","_t2","_t3"])]
@@ -70,14 +73,14 @@ def darboux_plot(df,names):
         xcent = (xedges[:-1] + xedges[1:])/2
         ycent = (yedges[:-1] + yedges[1:])/2
         #If 2d KDEs are working, use that:
-        try:
+        try:    
             H, xed, yed = calc_darboux_kde(t1,t2,t3,name=dye)
         except Exception as e:
             print("Failed in kde:",e)
             
             print("Continuing with standard histogram.")
             H, xed, yed = np.histogram2d(thetas,phis,bins=[xedges,yedges])
-        
+
         #Finally, plot:
         plt.clf()
         fig = plt.figure()
@@ -304,30 +307,36 @@ def calc_darboux_kde(t1,t2,t3,gridpoints=512,name='darboux_scat'):
     else:
         df = pd.DataFrame()
         cols = ['name','mode_theta','ave_theta','mode_phi','ave_phi']
-        df.columns = cols
+        #for col in cols:
+        #    df[col] = None
+        #df.columns = cols
     mode = np.argmax(colors_sorted).flatten()
     mode_theta = thetas_sorted[mode]
     mode_phi = phis_sorted[mode]
     ave_theta = np.average(thetas_sorted)
     ave_phi = np.average(phis_sorted)
-    df.loc[-1] = [name,mode_theta,ave_theta,mode_phi,ave_phi]
+    #Reformat for ease of DataFrame entry
+    data_list = [name,mode_theta,ave_theta,mode_phi,ave_phi]
+    data_dict = {col:ele for col,ele in zip(cols,data_list)}
+    if len(df.columns) == 0:
+        df = pd.DataFrame(data_dict)
+    else:
+        df.loc[-1] = [name,mode_theta,ave_theta,mode_phi,ave_phi]
+    #df.columns = cols
     df.to_csv('aves.csv',index=False,na_rep='NULL')
     
     
-    base = name + "_scatt"
+    base = "outputs/" + name + "_scatt"
     plt.savefig(base + ".png", dpi=600)
     plt.savefig(base + ".pdf")
     plt.savefig(base + ".svg")
     plt.savefig(base + ".eps")
     print("Saved %s.png" % base)
 
+    return #Haven't calculated these...
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f','--file', type=str, default='output.h5',
-        help='Path to ABF integrated output')
-    parser.add_argument('-m','--max', type=float, default=40.0,
-        help='Maximum free energy to plot up to. Default = 40.0.')
     args = parser.parse_args()
 
     main()

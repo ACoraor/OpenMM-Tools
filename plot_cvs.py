@@ -49,8 +49,8 @@ def single_plot(timestep,data,name):
     plt.clf()
     ts_sec = 2e-15 # Timestep in seconds
     plot_times = timestep * ts_sec / (1e-9) #Plot in nanoseconds
-    data = data[:20001]
-    plot_times= plot_times[:20001]    
+    #data = data[:20001]
+    #plot_times= plot_times[:20001]    
 
     #Convert units here
     #if name == "fiber_angle":
@@ -76,6 +76,8 @@ def single_plot(timestep,data,name):
     if not os.path.isdir('outputs'):
         os.mkdir('outputs')
     fn = os.path.join('outputs',name+'.png')
+    
+    #plt.ylim(0.0,3.5)
     plt.savefig(fn,dpi=600)
     
     #Plot zfit KDE
